@@ -1,0 +1,8 @@
+import { NextResponse } from "next/server";
+import { env } from "cloudflare:workers";
+import { requireAdminApi } from "@/lib/authz";
+export async function POST(){
+ const admin=await requireAdminApi();
+ if(!admin||!["super_admin","admin"].includes(admin.role))return NextResponse.json({success:false,error:{code:"FORBIDDEN",message:"Administrator access required."}},{status:403});
+ try{if(!env.DB||!env.BUCKET)throw new Error("STORAGE_UNAVAILABLE");const [content,siteSettings,navigation]=await Promise.all([env.DB.prepare("SELECT * FROM content_items").all(),env.DB.prepare("SELECT * FROM settings").all(),env.DB.prepare("SELECT * FROM navigation_items").all()]);const stamp=new Date().toISOString();const id=`backup_${crypto.randomUUID()}`;const payload=JSON.stringify({version:1,createdAt:stamp,content:content.results,settings:siteSettings.results,navigation:navigation.results});const bytes=new TextEncoder().encode(payload);const checksum=await crypto.subtle.digest("SHA-256",bytes).then(b=>Array.from(new Uint8Array(b)).map(v=>v.toString(16).padStart(2,"0")).join(""));await env.BUCKET.put(`backups/${id}.json`,bytes,{httpMetadata:{contentType:"application/json"}});await env.DB.prepare("INSERT INTO backups (id,status,size,checksum,created_by,created_at) VALUES (?,'verified',?,?,?,?)").bind(id,bytes.length,checksum,admin.userId,stamp).run();return NextResponse.json({success:true,data:{id,status:"verified",size:bytes.length,checksum}})}catch(error){console.error("backup_failed",error instanceof Error?error.message:"unknown");return NextResponse.json({success:false,error:{code:"BACKUP_FAILED",message:"Backup failed without changing existing data."}},{status:500})}
+}

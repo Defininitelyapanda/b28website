@@ -1,0 +1,1 @@
+export default function Loading(){return <main className="page-hero" aria-live="polite"><div className="wrap"><p className="section-kicker">B28 Entertainment</p><h1>Loading the next frame…</h1></div></main>}

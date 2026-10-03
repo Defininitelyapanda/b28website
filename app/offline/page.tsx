@@ -1,0 +1,1 @@
+export default function Offline(){return <main className="page-hero"><div className="wrap"><p className="section-kicker">B28 / Offline</p><h1>The signal dropped.</h1><p>Reconnect and reload to return to the story.</p></div></main>}

@@ -1,0 +1,2 @@
+import { SiteFooter, SiteHeader } from "./site-chrome";
+export function PageFrame({kicker,title,intro,children}:{kicker:string;title:string;intro:string;children:React.ReactNode}){return <div className="site-shell"><SiteHeader/><main><header className="page-hero"><div className="wrap"><p className="section-kicker">{kicker}</p><h1>{title}</h1><p>{intro}</p></div></header>{children}</main><SiteFooter/></div>}
