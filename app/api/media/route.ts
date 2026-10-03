@@ -1,2 +1,22 @@
-import { NextResponse } from "next/server"; import { env } from "cloudflare:workers"; import { requireAdminApi,canWrite } from "@/lib/authz"; import { storeMedia } from "@/lib/storage";
-export async function POST(request:Request){const admin=await requireAdminApi();if(!admin||!canWrite(admin.role,"media"))return NextResponse.json({success:false,error:{code:"FORBIDDEN",message:"Media access required."}},{status:403});try{if(!env.DB)throw new Error("DATABASE_UNAVAILABLE");const form=await request.formData();const file=form.get("file");if(!(file instanceof File))throw new Error("FILE_REQUIRED");const key=await storeMedia(file);const id=`media_${crypto.randomUUID()}`;await env.DB.prepare("INSERT INTO media_items (id,storage_key,filename,title,description,alt_text,mime_type,size,tags,uploader_id,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)").bind(id,key,file.name,String(form.get("title")||file.name),String(form.get("description")||""),String(form.get("altText")||""),file.type,file.size,"[]",admin.userId,new Date().toISOString()).run();return NextResponse.json({success:true,data:{id,key}},{status:201})}catch(error){const code=error instanceof Error?error.message:"UPLOAD_FAILED";return NextResponse.json({success:false,error:{code,message:"Upload failed. The file was not saved; you can retry safely."}},{status:400})}}
+import { NextResponse } from "next/server";
+import { requireAdminApi, canWrite } from "@/lib/authz";
+import { storeMedia } from "@/lib/storage";
+import { updateStore } from "@/lib/local-store";
+
+export const runtime = "nodejs";
+export async function POST(request: Request) {
+  const admin = await requireAdminApi();
+  if (!admin || !canWrite(admin.role, "media")) return NextResponse.json({ success: false, error: { code: "FORBIDDEN", message: "Media access required." } }, { status: 403 });
+  try {
+    const form = await request.formData();
+    const file = form.get("file");
+    if (!(file instanceof File)) throw new Error("FILE_REQUIRED");
+    const key = await storeMedia(file);
+    const id = `media_${crypto.randomUUID()}`;
+    await updateStore((store) => { store.media.push({ id, storage_key: key, filename: file.name, title: String(form.get("title") || file.name), description: String(form.get("description") || ""), alt_text: String(form.get("altText") || ""), mime_type: file.type, size: file.size, tags: [], uploader_id: admin.userId, created_at: new Date().toISOString() }); });
+    return NextResponse.json({ success: true, data: { id, key } }, { status: 201 });
+  } catch (error) {
+    const code = error instanceof Error ? error.message : "UPLOAD_FAILED";
+    return NextResponse.json({ success: false, error: { code, message: "Upload failed. The file was not saved; you can retry safely." } }, { status: 400 });
+  }
+}

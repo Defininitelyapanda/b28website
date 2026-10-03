@@ -15,7 +15,6 @@
 
 # next.js
 /.next/
-/.vinext/
 /out/
 
 # misc
@@ -37,9 +36,17 @@ yarn-error.log*
 # typescript
 next-env.d.ts
 /dist/
+/.vinext/
 /.wrangler/
-# Checkout-local execution profile and tool state; never publish them.
 /.sites-runtime/
+/build/
+/scripts/
+/db/
+/drizzle/
+/\.openai/
+/data/cms.json
+/data/backups/
+/public/uploads/
 /.agents/
 /.codex/
 /outputs/

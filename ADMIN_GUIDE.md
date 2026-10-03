@@ -1,6 +1,6 @@
 # B28 admin guide
 
-Open `/admin` and sign in. The first authenticated owner becomes the super administrator; later users start as editors and should be reviewed before the Site is made public.
+Open `/admin` and sign in with the password configured in `.env.local`. The local administrator has full editorial access.
 
 ## Publish work
 
@@ -10,7 +10,7 @@ The editor autosaves a local recovery copy after a short pause. If a tab or brow
 
 ## Media
 
-Upload JPG, PNG, WebP, AVIF, MP4, WebM, MP3, WAV or PDF files through the media endpoint. Files receive generated object keys; original filenames are metadata only. Add meaningful alt text before using an image. Large original video should normally be hosted on Cloudflare Stream, Vimeo or YouTube and referenced from a Video block.
+Upload JPG, PNG, WebP, AVIF, MP4, WebM, MP3, WAV or PDF files through the media endpoint. Files receive generated local filenames; original filenames are metadata only. Add meaningful alt text before using an image. Keep media sizes appropriate for the available local disk space.
 
 ## Leads
 
@@ -18,7 +18,7 @@ New contact enquiries appear under **Contact pipeline** with the `NEW` state. Re
 
 ## Recovery and backups
 
-The protected **Recovery** route works independently of the main dashboard. Check `/api/health` first. A backup request writes a checksummed JSON snapshot of content, settings and navigation into private object storage. Never restore a backup without separately confirming the target and backup ID.
+The protected **Recovery** route works independently of the main dashboard. Check `/api/health` first. A backup request writes a checksummed JSON snapshot of content, settings and navigation into `data/backups`. Never restore a backup without separately confirming the target and backup ID.
 
 ## Demo content
 

@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://b28-entertainment.pink-crown-2781.chatgpt.site"),
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"),
   title: { default: "B28 Entertainment — Stories That Stay", template: "%s — B28 Entertainment" },
   description: "B28 Entertainment is a Kenyan production company making emotionally powerful films, documentaries and visual stories.",
   applicationName: "B28 Entertainment", keywords: ["Kenyan film", "film production", "Nairobi production company", "documentary", "B28 Entertainment"],

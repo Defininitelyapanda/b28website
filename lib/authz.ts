@@ -1,8 +1,8 @@
-import { getChatGPTUser } from "@/app/chatgpt-auth";
+import { getLocalAdmin } from "./local-auth";
 import { ensureAdmin } from "./cms";
 
 export async function requireAdminApi() {
-  const user = await getChatGPTUser();
+  const user = await getLocalAdmin();
   if (!user) return null;
   const account = await ensureAdmin(user);
   if (!account.active) return null;

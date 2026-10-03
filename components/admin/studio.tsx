@@ -4,7 +4,7 @@ type Draft={id?:string;type:ContentType;slug:string;title:string;status:ContentS
 const blank:Draft={type:"project",slug:"",title:"",status:"draft",excerpt:"",body:"",coverImage:"",featured:false,data:{},blocks:[]};
 export function AdminStudio({initial}:{initial:ContentItem[]}){const [items,setItems]=useState(initial);const [draft,setDraft]=useState<Draft>(blank);const [flash,setFlash]=useState("");const [saving,setSaving]=useState(false);const [filter,setFilter]=useState<ContentType|"all">("all");
  const visible=useMemo(()=>items.filter(i=>filter==="all"||i.type===filter),[items,filter]);
- useEffect(()=>{const recovered=localStorage.getItem("b28-recovered-draft");if(recovered&&!draft.title)setFlash("Recovered unsaved draft available. Choose Restore or start a new item.")},[]);
+ useEffect(()=>{const recovered=localStorage.getItem("b28-recovered-draft");if(!recovered)return;const frame=requestAnimationFrame(()=>setFlash("Recovered unsaved draft available. Choose Restore or start a new item."));return()=>cancelAnimationFrame(frame)},[]);
  useEffect(()=>{if(!draft.title)return;const id=setTimeout(()=>localStorage.setItem("b28-recovered-draft",JSON.stringify(draft)),700);return()=>clearTimeout(id)},[draft]);
  function edit(item:ContentItem){const blocks=Array.isArray(item.data.blocks)?item.data.blocks as ContentBlock[]:[];setDraft({...item,coverImage:item.coverImage||"",blocks});setFlash("")}
  function restore(){const value=localStorage.getItem("b28-recovered-draft");if(value)setDraft(JSON.parse(value) as Draft);setFlash("Draft restored.")}
