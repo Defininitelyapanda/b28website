@@ -23,3 +23,48 @@
 .contact-form select{color:var(--paper);color-scheme:dark;background-color:transparent}
 .contact-form select option{color:var(--paper);background-color:var(--panel)}
 .contact-form select option:disabled{color:var(--muted)}
+
+/* Device-safe sizing and overflow guards. */
+html,body{width:100%;max-width:100%;overflow-x:hidden;overflow-x:clip}
+img,video,svg{max-width:100%}
+:where(main,section,header,footer,div,article,aside,form,nav){min-width:0}
+.hero-copy h1,.page-hero h1,.detail-copy h1,.final-cta h2,.footer-big{text-wrap:balance;overflow-wrap:anywhere}
+.footer-grid a,.contact-meta a,.legal span{max-width:100%;overflow-wrap:anywhere}
+.button,.nav-cta{max-width:100%;white-space:normal;text-align:center}
+
+@media(max-width:640px){
+  .wrap{width:calc(100% - 32px)}
+  .hero{height:auto;min-height:100svh}
+  .hero-copy{padding-bottom:5.5rem}
+  .hero-copy h1{font-size:clamp(2.35rem,12vw,4rem);line-height:.86;letter-spacing:-.055em}
+  .hero-intro{font-size:.98rem}
+  .page-hero{min-height:min(720px,82svh);padding:8.5rem 0 4rem}
+  .page-hero h1{font-size:clamp(2.35rem,12vw,4rem);line-height:.86;letter-spacing:-.055em}
+  .page-hero p:not(.section-kicker){font-size:1rem}
+  .detail-copy{padding-bottom:3.5rem}
+  .detail-copy h1{font-size:clamp(2.5rem,13vw,4rem);line-height:.86}
+  .statement h2,.split h2,.team-line h2{font-size:clamp(2rem,10vw,3rem)}
+  .section-head{flex-direction:column}
+  .section-head h2,.services-preview h2{font-size:clamp(2.25rem,11vw,3.5rem)}
+  .final-cta h2{font-size:clamp(2.35rem,12vw,4rem);line-height:.88}
+  .footer-big{font-size:clamp(2.25rem,11.5vw,3.75rem);line-height:.86}
+  .footer-grid{gap:2.5rem}
+  .contact-meta a{display:flex;align-items:flex-start;gap:.55rem;font-size:clamp(1rem,5.2vw,1.35rem)}
+  .contact-meta a svg{flex:0 0 auto;margin-top:.2rem}
+  .archive-controls .search-box{width:100%}
+  .mobile-menu{padding-inline:16px}
+  .mobile-menu-inner>a{grid-template-columns:36px minmax(0,1fr);font-size:clamp(1.9rem,10vw,3rem)}
+  .admin-main{padding-inline:1rem}
+  .admin-topbar,.admin-actions,.block-row{flex-wrap:wrap}
+  .content-table{display:block;max-width:100%;overflow-x:auto}
+}
+
+@media(max-width:380px){
+  .wrap{width:calc(100% - 24px)}
+  .site-header{padding-inline:12px}
+  .brand{gap:8px}
+  .brand-mark{width:34px;height:34px}
+  .menu-button{gap:7px}
+  .hero-copy h1,.page-hero h1{font-size:clamp(2.15rem,11.5vw,2.75rem)}
+  .hero-actions .button{width:100%}
+}
