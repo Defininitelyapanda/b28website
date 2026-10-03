@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { Camera, Mail, Menu, Music2, Play, X } from "lucide-react";
 import { CONTACT_EMAIL, PROJECT_EMAIL_URL } from "@/lib/contact";
+import { AdminAccessLink } from "./admin-access-link";
 
 const links = [["Projects", "/work"], ["About", "/about"], ["Services", "/services"], ["Contact", "/contact"]];
 const socials = [
@@ -23,5 +24,5 @@ export function SiteHeader() {
 }
 
 export function SiteFooter() {
-  return <footer className="site-footer"><div className="wrap footer-grid"><div><Link href="/" className="brand"><Mark/><span>B28<br/>Entertainment</span></Link><p>Kenyan film studio<br/>Nairobi, Kenya</p></div><div><p className="footer-label">Explore</p>{links.map(([label, href]) => <Link key={href} href={href}>{label}</Link>)}</div><div><p className="footer-label">Connect</p>{socials.map(({ label, href, Icon }) => <a key={label} href={href} target="_blank" rel="noreferrer"><Icon size={18}/>{label}</a>)}</div><div className="footer-big">Entertainment<br/><em>made for you.</em></div></div><div className="wrap legal"><span>© {new Date().getFullYear()} B28 Entertainment</span><span>Original Kenyan films and visual stories.</span><Link href="/admin">Admin</Link></div></footer>;
+  return <footer className="site-footer"><div className="wrap footer-grid"><div><Link href="/" className="brand"><Mark/><span>B28<br/>Entertainment</span></Link><p>Kenyan film studio<br/>Nairobi, Kenya</p></div><div><p className="footer-label">Explore</p>{links.map(([label, href]) => <Link key={href} href={href}>{label}</Link>)}</div><div><p className="footer-label">Connect</p>{socials.map(({ label, href, Icon }) => <a key={label} href={href} target="_blank" rel="noreferrer"><Icon size={18}/>{label}</a>)}</div><div className="footer-big">Entertainment<br/><em>made for you.</em></div></div><div className="wrap legal"><span>© {new Date().getFullYear()} B28 Entertainment</span><span>Original Kenyan films and visual stories.</span><span className="legal-admin-slot"><AdminAccessLink/></span></div></footer>;
 }

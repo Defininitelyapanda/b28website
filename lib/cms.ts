@@ -1,5 +1,6 @@
 import type { ContentItem, ContentType } from "./cms-types";
 import { readStore, updateStore } from "./local-store";
+import { isAdminEmail } from "./admin-identity";
 
 const now = () => new Date().toISOString();
 const uid = (prefix: string) => `${prefix}_${crypto.randomUUID()}`;
@@ -84,9 +85,12 @@ export async function ensureSeedData(authorId = "system") {
 export async function ensureAdmin(user: { userId: string; email: string; displayName: string }) {
   return updateStore((store) => {
     const existing = store.users.find((entry) => entry.id === user.userId);
-    if (existing) return existing;
+    if (existing) {
+      if (isAdminEmail(existing.email)) existing.role = "super_admin";
+      return existing;
+    }
     const stamp = now();
-    const created = { id: user.userId, email: user.email, name: user.displayName, role: store.users.length === 0 ? "super_admin" : "editor", active: true, created_at: stamp, updated_at: stamp };
+    const created = { id: user.userId, email: user.email, name: user.displayName, role: isAdminEmail(user.email) ? "super_admin" : "editor", active: true, created_at: stamp, updated_at: stamp };
     store.users.push(created);
     return created;
   });

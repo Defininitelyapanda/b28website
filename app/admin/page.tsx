@@ -2,12 +2,12 @@ import { AdminNav } from "@/components/admin/admin-nav";
 import { AdminStudio } from "@/components/admin/studio";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { dashboardStats, ensureAdmin, ensureSeedData, listContacts, listContent } from "@/lib/cms";
-import { requireLocalAdmin } from "@/lib/local-auth";
+import { requireAdmin } from "@/lib/admin-auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function Admin() {
-  const user = await requireLocalAdmin("/admin");
+  const user = await requireAdmin("/admin");
   await ensureAdmin(user);
   await ensureSeedData(user.userId);
   const [stats, items, contacts] = await Promise.all([dashboardStats(), listContent(undefined, true, 200), listContacts()]);

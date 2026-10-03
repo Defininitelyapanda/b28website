@@ -1,8 +1,8 @@
-import { getLocalAdmin } from "./local-auth";
+import { getAdminUser } from "./admin-auth";
 import { ensureAdmin } from "./cms";
 
 export async function requireAdminApi() {
-  const user = await getLocalAdmin();
+  const user = await getAdminUser();
   if (!user) return null;
   const account = await ensureAdmin(user);
   if (!account.active) return null;
