@@ -84,9 +84,15 @@ export async function ensureSeedData(authorId = "system") {
 
 export async function ensureAdmin(user: { userId: string; email: string; displayName: string }) {
   return updateStore((store) => {
+    for (const account of store.users) {
+      if (!isAdminEmail(account.email)) account.active = false;
+    }
     const existing = store.users.find((entry) => entry.id === user.userId);
     if (existing) {
-      if (isAdminEmail(existing.email)) existing.role = "super_admin";
+      if (isAdminEmail(existing.email)) {
+        existing.role = "super_admin";
+        existing.active = true;
+      }
       return existing;
     }
     const stamp = now();

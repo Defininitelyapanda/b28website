@@ -1,4 +1,6 @@
-export const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || "b28entertainment@gmail.com").trim().toLocaleLowerCase();
+import { B28_EMAIL } from "./brand.ts";
+
+export const ADMIN_EMAIL = B28_EMAIL;
 
 export function isAdminEmail(email: string | null | undefined) {
   return Boolean(email && email.trim().toLocaleLowerCase() === ADMIN_EMAIL);

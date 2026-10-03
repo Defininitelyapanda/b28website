@@ -27,7 +27,7 @@ Set these environment variables locally and on the hosting platform:
 AUTH_SECRET="a-long-random-secret"
 AUTH_GOOGLE_ID="your-google-oauth-client-id"
 AUTH_GOOGLE_SECRET="your-google-oauth-client-secret"
-ADMIN_EMAIL="b28entertainment@gmail.com"
+AUTH_URL="https://YOUR_DOMAIN"
 NEXT_PUBLIC_SITE_URL="https://YOUR_DOMAIN"
 ```
 
