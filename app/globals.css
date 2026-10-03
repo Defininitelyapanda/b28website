@@ -84,3 +84,13 @@ img,video,svg{max-width:100%}
   .project-grid{grid-template-columns:minmax(0,1fr);gap:3rem}
   .project-info>p{display:block}
 }
+
+.password-field{position:relative;display:block}
+.password-field input{padding-right:3rem}
+.password-toggle{position:absolute;right:0;bottom:.55rem;width:2.25rem;height:2.25rem;border:0;background:transparent;color:var(--muted);display:grid;place-items:center;cursor:pointer}
+.password-toggle:hover,.password-toggle:focus-visible{color:var(--paper)}
+.login-error{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:1rem;margin:1.25rem 0;padding:1rem;border:1px solid #ef6d6d;background:rgba(239,109,109,.08)}
+.login-error strong{display:block;color:#ff9e9e}
+.login-error p{margin:.25rem 0 0;color:#d7d3cc;font-size:.88rem}
+.login-error .admin-button{flex:0 0 auto}
+@media(max-width:480px){.login-error{align-items:flex-start;flex-direction:column}.login-error .admin-button{width:100%}}
