@@ -3,11 +3,13 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Play } from "lucide-react";
 import { getContent } from "@/lib/cms";
+import { syncYouTubeProjects } from "@/lib/youtube-projects";
 import { SiteFooter, SiteHeader } from "@/components/public/site-chrome";
 
 export const dynamic = "force-dynamic";
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
+  await syncYouTubeProjects();
   const project = await getContent(slug);
   if (!project) return { title: "Project not found" };
   return { title: project.title, description: project.excerpt, openGraph: { title: `${project.title} — B28 Entertainment`, description: project.excerpt, images: project.coverImage ? [project.coverImage] : [] } };
@@ -15,6 +17,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
 export default async function Project({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
+  await syncYouTubeProjects();
   const project = await getContent(slug);
   if (!project || project.type !== "project") notFound();
   const credits = Array.isArray(project.data.credits) ? project.data.credits.map(String) : [];
