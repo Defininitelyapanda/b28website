@@ -6,7 +6,9 @@ Anyone who learns this path can use the studio and modify content. Treat the URL
 
 ## Publish work
 
-Choose **New**, select Project, add the title and clean URL slug, write the short catalogue description and main story, then add a cover image path. Add, reorder or remove flexible content blocks. Use **Save draft** until ready and **Publish** when the record is complete. The same flow handles pages, services, team profiles and journal articles.
+Choose **New**, select the content type, add the title and clean URL slug, write the short description and main story, then add a cover image path. Complete the type-specific fields shown by the editor, and add, reorder or remove flexible content blocks. Use **Save draft** until ready and **Publish** when the record is complete. After publishing, use **View live** to verify the public result.
+
+Pages publish at `/{slug}` and are added to public navigation. Projects publish to the Work archive, journal articles publish below About and in the Journal archive, services publish to Services, and team members publish below About.
 
 The editor autosaves a local recovery copy after a short pause. If a tab or browser closes unexpectedly, return to the editor and choose **Restore**. Every server save also creates an immutable version. Version endpoints support review and restore without overwriting history.
 

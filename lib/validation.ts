@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isReservedPageSlug } from "./content-url.ts";
 
 export const contentSchema = z.object({
   id: z.string().min(1).optional(),
@@ -14,6 +15,8 @@ export const contentSchema = z.object({
   sortOrder: z.number().int().min(0).default(0),
   scheduledAt: z.string().datetime().nullable().optional(),
   changeSummary: z.string().max(240).default("Saved changes"),
+}).superRefine((content, context) => {
+  if (content.type === "page" && isReservedPageSlug(content.slug)) context.addIssue({ code: "custom", path: ["slug"], message: "This page address is reserved by the website." });
 });
 
 export const contactSchema = z.object({

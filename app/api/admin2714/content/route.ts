@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { listContent, saveContent } from "@/lib/cms";
+import { itemPath } from "@/lib/content-url";
 import { STUDIO_USER_ID } from "@/lib/studio-identity";
 import { contentSchema } from "@/lib/validation";
 
@@ -14,7 +16,8 @@ export async function POST(request: Request) {
   if (!parsed.success) return NextResponse.json({ success: false, error: { code: "INVALID_CONTENT", message: "Please check the content fields.", issues: parsed.error.flatten() } }, { status: 400 });
   try {
     const data = await saveContent({ id: parsed.data.id || crypto.randomUUID(), type: parsed.data.type, slug: parsed.data.slug, title: parsed.data.title, status: parsed.data.status, excerpt: parsed.data.excerpt, body: parsed.data.body, coverImage: parsed.data.coverImage || null, data: parsed.data.data, featured: parsed.data.featured, sortOrder: parsed.data.sortOrder, scheduledAt: parsed.data.scheduledAt || null, changeSummary: parsed.data.changeSummary }, STUDIO_USER_ID);
-    return NextResponse.json({ success: true, data });
+    revalidatePath("/", "layout");
+    return NextResponse.json({ success: true, data, publicPath: itemPath(data) });
   } catch (error) {
     console.error("content_save_failed", error instanceof Error ? error.message : "unknown");
     return NextResponse.json({ success: false, error: { code: "SAVE_FAILED", message: "Publishing failed. Your content remains available in the editor—save it as a draft and retry." } }, { status: 500 });

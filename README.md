@@ -20,6 +20,8 @@ Set the public site URL locally and on the hosting platform:
 
 ```env
 NEXT_PUBLIC_SITE_URL="https://YOUR_DOMAIN"
+CMS_DATA_DIR="/data/cms"
+CMS_UPLOAD_DIR="/data/uploads"
 ```
 
 There is no login or account authentication. Knowledge of `/admin2714` is the only access control, and its management APIs use the same unlinked namespace. Anyone who discovers the path can modify site content, so do not publish or link it.
@@ -30,7 +32,15 @@ There is no login or account authentication. Knowledge of `/admin2714` is the on
 - Uploaded files: `public/uploads/`
 - Backups: `data/backups/`
 
-These runtime files are ignored by Git. A hosted deployment must attach persistent storage for these locations or migrate them to a durable database/object store.
+These runtime files are ignored by Git. A hosted deployment must attach persistent storage for these locations or migrate them to a durable database/object store. On Wasmer, create a persistent volume mounted at `/data`, keep the app in the same volume-supported region, and set the two `CMS_*` variables above. Without that volume, an admin save can succeed inside one ephemeral instance and then disappear from public requests or after a restart.
+
+Published CMS destinations are:
+
+- Page: `/{slug}` and an automatic public navigation link
+- Project: `/work/{slug}` and the Projects archive
+- Journal article: `/journal/{slug}`, the Journal archive, and the Journal section on About
+- Service: the Services page
+- Team member: the Team section on About
 
 ## Commands
 
