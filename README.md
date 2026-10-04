@@ -40,7 +40,7 @@ The production build intentionally uses the repository's local seed data. Wasmer
 
 The production site is deployed as a Cloudflare Worker at:
 
-`https://b28-entertainment-platform.tonniekye.workers.dev`
+`https://b28website.tonniekye.workers.dev`
 
 The typed configuration in `cloudflare.config.ts` provisions/binds D1 database `b28-cms`, R2 bucket `b28-media`, static assets, and the production site URL. Authenticate the Cloudflare CLI for the target account, then run:
 

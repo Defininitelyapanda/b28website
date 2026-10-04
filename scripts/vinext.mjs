@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { rmSync } from "node:fs";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
@@ -7,7 +8,7 @@ const require = createRequire(import.meta.url);
 const action = process.argv[2];
 const productionUrl = process.env.NEXT_PUBLIC_SITE_URL?.startsWith("https://")
   ? process.env.NEXT_PUBLIC_SITE_URL
-  : "https://b28-entertainment-platform.tonniekye.workers.dev";
+  : "https://b28website.tonniekye.workers.dev";
 
 let cli;
 let args;
@@ -25,6 +26,7 @@ if (action === "build") {
   throw new Error("Expected vinext action: build or deploy");
 }
 
+rmSync(path.join(process.cwd(), ".next"), { recursive: true, force: true });
 const result = spawnSync(process.execPath, [cli, ...args], {
   env: { ...process.env, NEXT_PUBLIC_SITE_URL: productionUrl },
   stdio: "inherit",

@@ -52,7 +52,7 @@ test("Cloudflare deployment binds persistent D1 and R2 storage", async () => {
   assert.match(config, /CMS_MEDIA:\s*bindings\.r2\(\{ name: ["']b28-media["']/);
   assert.match(config, /NEXT_PUBLIC_SITE_URL/);
   assert.match(packageFile, /deploy:vinext/);
-  assert.match(deployScript, /b28-entertainment-platform\.tonniekye\.workers\.dev/);
+  assert.match(deployScript, /b28website\.tonniekye\.workers\.dev/);
   assert.match(store, /cloudflareCmsDatabase/);
   assert.match(storage, /cloudflareMediaBucket/);
 });
