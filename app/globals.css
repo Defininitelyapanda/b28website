@@ -59,6 +59,16 @@ img,video,svg{max-width:100%}
   .content-table{display:block;max-width:100%;overflow-x:auto}
 }
 
+/* Settings controlled by the visual builder. */
+.site-shell{min-height:100vh;background-color:var(--ink);color:var(--paper);font-family:var(--body-font,"Helvetica Neue",Arial,sans-serif)}
+.site-shell .wrap{width:min(calc(100% - 48px),var(--site-max,1380px))}
+.site-shell .section-pad{padding-block:clamp(2rem,var(--section-space,100px),14rem)}
+.site-shell :is(h1,h2,h3,h4,h5,h6){font-family:var(--heading-font,"Helvetica Neue",Arial,sans-serif);font-weight:var(--heading-weight,520)}
+.site-shell .site-header{background:var(--site-header,transparent)}
+.site-shell .site-footer{background:var(--site-footer,var(--ink))}
+.site-shell :is(.button,.nav-cta,.project-media,.journal-image,.team-card,.managed-gallery,.managed-stats,.managed-timeline){border-radius:var(--site-radius,4px)}
+@media(max-width:640px){.site-shell .wrap{width:calc(100% - 32px)}}
+
 /* Visual website builder */
 .builder-shell{height:100vh;overflow:hidden;background:#0b0c0c;color:#f2f0e9;display:grid;grid-template:60px minmax(0,1fr)/270px minmax(360px,1fr) 370px;font-family:Inter,"Helvetica Neue",Arial,sans-serif}
 .builder-shell button,.builder-shell input,.builder-shell textarea,.builder-shell select{font:inherit}
@@ -160,6 +170,21 @@ img,video,svg{max-width:100%}
 .team-card{padding:1.5rem;border:1px solid var(--line)}
 .team-card h3{margin:.25rem 0;font-size:1.5rem}
 .team-card p{color:var(--muted)}
+
+/* Full visual-design controls and preview. */
+.builder-field-note{margin:0;color:#858b87;font-size:.68rem;line-height:1.5;text-transform:none;letter-spacing:normal}
+.builder-field-group{display:grid;gap:.75rem;padding:1rem;border:1px solid #303333;border-radius:8px;background:#151717}
+.builder-field-group>strong{color:#d99042;font-size:.65rem;letter-spacing:.12em;text-transform:uppercase}
+.builder-color{display:grid;grid-template-columns:42px minmax(0,1fr)}
+.builder-color input[type="color"]{height:37px;padding:3px;border-radius:6px 0 0 6px}
+.builder-color input+input{border-radius:0 6px 6px 0}
+.builder-fields input[type="range"]{padding:0;border:0;accent-color:#d99042}
+.builder-code{min-height:230px!important;font-family:"Courier New",monospace!important;font-size:.68rem!important}
+.builder-site-preview{min-height:100%;background-position:center;background-size:cover}
+.builder-site-preview>header{height:76px;display:flex;align-items:center;justify-content:space-between;padding:0 clamp(20px,5vw,70px);border-bottom:1px solid rgba(255,255,255,.18);font-size:.7rem;letter-spacing:.12em;text-transform:uppercase}
+.builder-site-preview>section{display:flex;align-items:flex-end;padding:clamp(45px,8vw,100px);background-size:cover}
+.builder-site-preview>section>div{max-width:900px}.builder-site-preview small{text-transform:uppercase;letter-spacing:.14em}.builder-site-preview h1{max-width:1000px;margin:.65rem 0;font-size:clamp(3rem,9vw,8rem);line-height:.82;letter-spacing:-.06em;text-transform:uppercase}.builder-site-preview p{max-width:680px}.builder-site-preview button{margin-top:1rem;padding:.85rem 1.2rem;border:0;text-transform:uppercase;font-size:.7rem;letter-spacing:.1em}.builder-site-preview>article{margin:auto;padding:clamp(50px,9vw,120px) 24px}.builder-site-preview h2{font-size:clamp(2rem,5vw,5rem);line-height:1;margin:1rem 0}
+.builder-block details{border-top:1px solid #303333;padding-top:.45rem}.builder-block summary{cursor:pointer;color:#9da29e;font-size:.62rem}.builder-block-style{display:grid;gap:.45rem;padding-top:.55rem}.builder-block-style select{border:1px solid #343838;border-radius:6px;background:#191b1b;color:#f2f0e9;padding:.55rem}.builder-block-style label{display:grid;gap:.3rem;color:#999f9b;font-size:.6rem}.builder-block-style input[type="range"]{padding:0;accent-color:#d99042}.builder-block .builder-media-field textarea{border-radius:6px 0 0 6px}.builder-block .builder-media-field button{border:1px solid #343838;border-left:0;border-radius:0 6px 6px 0;background:#232626}.managed-block{background-size:cover;background-position:center}.managed-block>h2{margin-top:0}.about-logo-section{padding-bottom:var(--section-space,100px)}
 
 @media(max-width:1100px){
   .admin-studio-grid{grid-template-columns:1fr}

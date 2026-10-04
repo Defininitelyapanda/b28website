@@ -5,6 +5,8 @@ import Link from "next/link";
 import { ArrowLeft, ChevronDown, ChevronUp, Copy, ExternalLink, FileText, Laptop, Monitor, Plus, Redo2, Save, Search, Send, Smartphone, Trash2, Undo2, Upload, X } from "lucide-react";
 import type { ContentBlock, ContentItem, ContentStatus, ContentType } from "@/lib/cms-types";
 import { contentPath } from "@/lib/content-url";
+import { DEFAULT_SITE_SETTINGS, type SitePageKey, type SiteSettings } from "@/lib/site-settings";
+import { SiteDesignInspector, SiteDesignPreview } from "./site-design-editor";
 
 type Draft = {
   id?: string;
@@ -32,7 +34,7 @@ const typeDescriptions: Record<ContentType, string> = {
   service: "Add a capability to the Services page.",
   team: "Add a profile to the About page.",
 };
-const publicPages = [["Home", "/"], ["Projects", "/work"], ["About", "/about"], ["Services", "/services"], ["Journal", "/journal"], ["Contact", "/contact"]] as const;
+const publicPages: Array<[SitePageKey, string, string]> = [["home", "Home", "/"], ["work", "Projects", "/work"], ["about", "About", "/about"], ["services", "Services", "/services"], ["journal", "Journal", "/journal"], ["contact", "Contact", "/contact"]];
 
 function freshDraft(type: ContentType = "page"): Draft {
   return { type, slug: "", title: "", status: "draft", excerpt: "", body: "", coverImage: "", featured: false, sortOrder: 0, data: {}, blocks: [] };
@@ -50,7 +52,7 @@ function blockLabel(type: ContentBlock["type"]) {
   return ({ text: "Text", quote: "Quote", image: "Image", video: "Video", gallery: "Gallery", stats: "Statistics", timeline: "Timeline", cta: "Button" } as const)[type];
 }
 
-export function SiteBuilder({ initial }: { initial: ContentItem[] }) {
+export function SiteBuilder({ initial, initialSettings }: { initial: ContentItem[]; initialSettings: SiteSettings }) {
   const [items, setItems] = useState(initial);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [history, setHistory] = useState<Draft[]>([]);
@@ -64,7 +66,10 @@ export function SiteBuilder({ initial }: { initial: ContentItem[] }) {
   const [status, setStatus] = useState("Ready");
   const [saving, setSaving] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
+  const [siteSettings, setSiteSettings] = useState(initialSettings);
+  const [designTarget, setDesignTarget] = useState<"global" | SitePageKey | null>(null);
   const uploadRef = useRef<HTMLInputElement>(null);
+  const uploadReceiver = useRef<(path: string) => void>(() => undefined);
 
   const visible = useMemo(() => items.filter((item) => (filter === "all" || item.type === filter) && `${item.title} ${item.slug}`.toLocaleLowerCase().includes(query.toLocaleLowerCase())), [items, filter, query]);
 
@@ -75,11 +80,13 @@ export function SiteBuilder({ initial }: { initial: ContentItem[] }) {
   }, [draft]);
 
   function select(item: ContentItem) {
+    setDesignTarget(null);
     const next = fromItem(item);
     setDraft(next); setHistory([next]); setHistoryIndex(0); setPreviewPath(contentPath(item.type, item.slug)); setPreviewMode("design"); setStatus(`${typeLabels[item.type]} selected`);
   }
 
   function create(type: ContentType) {
+    setDesignTarget(null);
     const next = freshDraft(type);
     setDraft(next); setHistory([next]); setHistoryIndex(0); setPreviewMode("design"); setShowCreate(false); setStatus(`New ${typeLabels[type].toLocaleLowerCase()}`);
   }
@@ -180,26 +187,41 @@ export function SiteBuilder({ initial }: { initial: ContentItem[] }) {
       const response = await fetch("/api/admin2714/media", { method: "POST", body: form });
       const result = await response.json() as { success: boolean; data?: { key: string }; error?: { message?: string } };
       if (!response.ok || !result.success || !result.data) throw new Error(result.error?.message || "Upload failed.");
-      field("coverImage", result.data.key); setStatus("Media uploaded and selected");
+      uploadReceiver.current(result.data.key); setStatus("Media uploaded and selected");
     } catch (error) { setStatus(error instanceof Error ? error.message : "Upload failed"); }
     finally { setSaving(false); if (uploadRef.current) uploadRef.current.value = ""; }
   }
 
-  function openPublic(path: string) {
-    setPreviewPath(path); setPreviewMode("site"); setPreviewKey((key) => key + 1); setStatus(`Previewing ${path === "/" ? "home" : path}`);
+  function editDesign(target: "global" | SitePageKey, path = "/") {
+    setDraft(null); setDesignTarget(target); setPreviewPath(path); setPreviewMode("design"); setStatus(target === "global" ? "Editing global design" : `Editing ${target} page`);
   }
+
+  async function saveDesign() {
+    setSaving(true); setStatus("Publishing design…");
+    try {
+      const response = await fetch("/api/admin2714/site", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(siteSettings) });
+      const result = await response.json() as { success?: boolean; data?: SiteSettings; error?: { message?: string } };
+      if (!response.ok || !result.success) throw new Error(result.error?.message || "Design could not be saved.");
+      if (result.data) setSiteSettings(result.data);
+      setPreviewKey((key) => key + 1); setStatus("Design published to the live site");
+    } catch (error) { setStatus(error instanceof Error ? error.message : "Design could not be saved."); }
+    finally { setSaving(false); }
+  }
+
+  function requestUpload(receiver: (path: string) => void) { uploadReceiver.current = receiver; uploadRef.current?.click(); }
 
   return <div className="builder-shell">
     <header className="builder-toolbar">
       <div className="builder-brand"><Link href="/" aria-label="Return to public site"><ArrowLeft size={17}/></Link><span className="builder-logo">B28</span><div><strong>Website Builder</strong><small>{status}</small></div></div>
-      <div className="builder-toolbar-center"><button className={previewMode === "design" ? "active" : ""} onClick={() => setPreviewMode("design")} disabled={!draft}>Design</button><button className={previewMode === "site" ? "active" : ""} onClick={() => setPreviewMode("site")}>Live site</button><span className="builder-divider"/><button aria-label="Desktop preview" className={viewport === "desktop" ? "active" : ""} onClick={() => setViewport("desktop")}><Monitor size={16}/></button><button aria-label="Tablet preview" className={viewport === "tablet" ? "active" : ""} onClick={() => setViewport("tablet")}><Laptop size={16}/></button><button aria-label="Mobile preview" className={viewport === "mobile" ? "active" : ""} onClick={() => setViewport("mobile")}><Smartphone size={16}/></button></div>
-      <div className="builder-toolbar-actions"><button aria-label="Undo" onClick={undo} disabled={historyIndex <= 0}><Undo2 size={16}/></button><button aria-label="Redo" onClick={redo} disabled={historyIndex >= history.length - 1}><Redo2 size={16}/></button><button onClick={() => void save("draft")} disabled={!draft || saving}><Save size={15}/> Draft</button><button className="primary" onClick={() => void save("published")} disabled={!draft || saving}><Send size={15}/> Publish</button></div>
+      <div className="builder-toolbar-center"><button className={previewMode === "design" ? "active" : ""} onClick={() => setPreviewMode("design")} disabled={!draft && !designTarget}>Design</button><button className={previewMode === "site" ? "active" : ""} onClick={() => setPreviewMode("site")}>Live site</button><span className="builder-divider"/><button aria-label="Desktop preview" className={viewport === "desktop" ? "active" : ""} onClick={() => setViewport("desktop")}><Monitor size={16}/></button><button aria-label="Tablet preview" className={viewport === "tablet" ? "active" : ""} onClick={() => setViewport("tablet")}><Laptop size={16}/></button><button aria-label="Mobile preview" className={viewport === "mobile" ? "active" : ""} onClick={() => setViewport("mobile")}><Smartphone size={16}/></button></div>
+      <div className="builder-toolbar-actions"><button aria-label="Undo" onClick={undo} disabled={!draft || historyIndex <= 0}><Undo2 size={16}/></button><button aria-label="Redo" onClick={redo} disabled={!draft || historyIndex >= history.length - 1}><Redo2 size={16}/></button>{designTarget ? <button className="primary" onClick={() => void saveDesign()} disabled={saving}><Send size={15}/> Publish design</button> : <><button onClick={() => void save("draft")} disabled={!draft || saving}><Save size={15}/> Draft</button><button className="primary" onClick={() => void save("published")} disabled={!draft || saving}><Send size={15}/> Publish</button></>}</div>
     </header>
+    <input ref={uploadRef} className="sr-only" type="file" accept="image/*,video/mp4,video/webm" onChange={(event) => { const file = event.target.files?.[0]; if (file) void upload(file); }}/>
 
     <aside className="builder-left">
       <div className="builder-side-heading"><div><small>Website</small><strong>Pages & content</strong></div><button aria-label="Add content" onClick={() => setShowCreate(!showCreate)}><Plus size={17}/></button></div>
       {showCreate && <div className="builder-create-menu">{(Object.keys(typeLabels) as ContentType[]).map((type) => <button key={type} onClick={() => create(type)}><strong>{typeLabels[type]}</strong><span>{typeDescriptions[type]}</span></button>)}</div>}
-      <nav className="builder-public-pages" aria-label="Public pages">{publicPages.map(([label, path]) => <button key={path} className={previewPath === path && previewMode === "site" ? "active" : ""} onClick={() => openPublic(path)}><FileText size={15}/><span>{label}</span><small>{path}</small></button>)}</nav>
+      <nav className="builder-public-pages" aria-label="Public pages"><button className={designTarget === "global" ? "active" : ""} onClick={() => editDesign("global")}><FileText size={15}/><span>Global design</span><small>all pages</small></button>{publicPages.map(([key, label, path]) => <button key={path} className={designTarget === key ? "active" : ""} onClick={() => editDesign(key, path)}><FileText size={15}/><span>{label}</span><small>{path}</small></button>)}</nav>
       <div className="builder-library-heading"><strong>Managed content</strong><span>{items.length}</span></div>
       <label className="builder-search"><Search size={14}/><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search"/></label>
       <div className="builder-filter">{(["all", "page", "project", "article", "service", "team"] as const).map((type) => <button className={filter === type ? "active" : ""} key={type} onClick={() => setFilter(type)}>{type === "all" ? "All" : typeLabels[type]}</button>)}</div>
@@ -208,12 +230,12 @@ export function SiteBuilder({ initial }: { initial: ContentItem[] }) {
 
     <main className="builder-canvas">
       <div className={`builder-device ${viewport}`}>
-        {previewMode === "site" ? <iframe key={`${previewPath}-${previewKey}`} src={previewPath} title={`Preview of ${previewPath}`}/> : draft ? <DraftPreview draft={draft}/> : <div className="builder-empty"><FileText size={32}/><h2>Select something to edit</h2><p>Choose a page or content item from the left, or create a new one.</p></div>}
+        {previewMode === "site" ? <iframe key={`${previewPath}-${previewKey}`} src={previewPath} title={`Preview of ${previewPath}`}/> : designTarget ? <SiteDesignPreview settings={siteSettings} pageKey={designTarget === "global" ? "home" : designTarget}/> : draft ? <DraftPreview draft={draft}/> : <div className="builder-empty"><FileText size={32}/><h2>Select something to edit</h2><p>Choose a page or content item from the left, or create a new one.</p></div>}
       </div>
     </main>
 
     <aside className="builder-inspector">
-      {!draft ? <div className="builder-inspector-empty"><strong>Nothing selected</strong><p>Select managed content to edit its design and information.</p></div> : <>
+      {designTarget ? <SiteDesignInspector settings={siteSettings} target={designTarget} onChange={(next) => { setSiteSettings(next); setStatus("Unsaved design changes"); }} onUpload={requestUpload} onReset={() => { setSiteSettings(DEFAULT_SITE_SETTINGS); setStatus("Design reset locally — publish to apply"); }}/> : !draft ? <div className="builder-inspector-empty"><strong>Nothing selected</strong><p>Select a page, global design, or managed content to edit it.</p></div> : <>
         <div className="builder-inspector-head"><div><small>{draft.id ? "Editing" : "Creating"}</small><strong>{draft.title || `New ${typeLabels[draft.type]}`}</strong></div><button aria-label="Close editor" onClick={() => { setDraft(null); setPreviewMode("site"); }}><X size={17}/></button></div>
         <div className="builder-inspector-actions"><button onClick={duplicate}><Copy size={14}/> Duplicate</button>{draft.status === "published" && draft.slug && <a href={contentPath(draft.type, draft.slug)} target="_blank" rel="noreferrer"><ExternalLink size={14}/> Open</a>}<button className="danger" onClick={() => void remove()} disabled={!draft.id || saving}><Trash2 size={14}/> Delete</button></div>
         <div className="builder-fields">
@@ -222,13 +244,22 @@ export function SiteBuilder({ initial }: { initial: ContentItem[] }) {
           <label>URL slug<div className="builder-slug"><span>/</span><input value={draft.slug} onChange={(event) => field("slug", slugify(event.target.value))}/></div></label>
           <label>Short description<textarea value={draft.excerpt} onChange={(event) => field("excerpt", event.target.value)} placeholder="Used on cards and search results"/></label>
           <label>Main content<textarea className="builder-body-input" value={draft.body} onChange={(event) => field("body", event.target.value)} placeholder="Write the main story here…"/></label>
-          <label>Cover image<div className="builder-media-field"><input value={draft.coverImage} onChange={(event) => field("coverImage", event.target.value)} placeholder="/media/image.jpg"/><button type="button" onClick={() => uploadRef.current?.click()}><Upload size={14}/></button><input ref={uploadRef} className="sr-only" type="file" accept="image/*,video/mp4,video/webm" onChange={(event) => { const file = event.target.files?.[0]; if (file) void upload(file); }}/></div></label>
+          <label>Cover image<div className="builder-media-field"><input value={draft.coverImage} onChange={(event) => field("coverImage", event.target.value)} placeholder="/media/image.jpg"/><button type="button" onClick={() => requestUpload((path) => field("coverImage", path))}><Upload size={14}/></button></div></label>
           <TypeFields draft={draft} setData={dataField}/>
           <label className="builder-check"><input type="checkbox" checked={draft.featured} onChange={(event) => field("featured", event.target.checked)}/> Feature this item prominently</label>
         </div>
-        <div className="builder-blocks"><div className="builder-section-title"><div><small>Layout</small><strong>Content blocks</strong></div></div><div className="builder-block-palette">{(["text", "image", "quote", "video", "cta", "gallery", "stats", "timeline"] as ContentBlock["type"][]).map((type) => <button key={type} onClick={() => addBlock(type)}><Plus size={12}/>{blockLabel(type)}</button>)}</div>{draft.blocks.map((block, index) => <div className="builder-block" key={block.id}><div className="builder-block-head"><strong>{blockLabel(block.type)}</strong><span><button disabled={index === 0} onClick={() => moveBlock(index, -1)} aria-label="Move block up"><ChevronUp size={14}/></button><button disabled={index === draft.blocks.length - 1} onClick={() => moveBlock(index, 1)} aria-label="Move block down"><ChevronDown size={14}/></button><button onClick={() => removeBlock(block.id)} aria-label="Delete block"><Trash2 size={14}/></button></span></div><textarea value={String(block.data.text || "")} placeholder={["image", "video", "cta"].includes(block.type) ? "URL or file path" : "Block content"} onChange={(event) => updateBlock(block.id, { data: { ...block.data, text: event.target.value } })}/>{["image", "video", "cta"].includes(block.type) && <input value={String(block.data.label || block.data.alt || "")} placeholder={block.type === "image" ? "Image description" : "Label"} onChange={(event) => updateBlock(block.id, { data: { ...block.data, ...(block.type === "image" ? { alt: event.target.value } : { label: event.target.value }) } })}/>}</div>)}</div>
+        <div className="builder-blocks"><div className="builder-section-title"><div><small>Layout</small><strong>Content blocks</strong></div></div><div className="builder-block-palette">{(["text", "image", "quote", "video", "cta", "gallery", "stats", "timeline"] as ContentBlock["type"][]).map((type) => <button key={type} onClick={() => addBlock(type)}><Plus size={12}/>{blockLabel(type)}</button>)}</div>{draft.blocks.map((block, index) => <BlockEditor key={block.id} block={block} index={index} count={draft.blocks.length} update={(data) => updateBlock(block.id, { data: { ...block.data, ...data } })} move={moveBlock} remove={() => removeBlock(block.id)} upload={requestUpload}/>)}</div>
       </>}
     </aside>
+  </div>;
+}
+
+function BlockEditor({ block, index, count, update, move, remove, upload }: { block: ContentBlock; index: number; count: number; update: (data: Record<string, string | number | boolean | string[]>) => void; move: (index: number, movement: number) => void; remove: () => void; upload: (receiver: (path: string) => void) => void }) {
+  const imageLike = ["image", "video", "cta"].includes(block.type);
+  return <div className="builder-block"><div className="builder-block-head"><strong>{blockLabel(block.type)}</strong><span><button disabled={index === 0} onClick={() => move(index, -1)} aria-label="Move block up"><ChevronUp size={14}/></button><button disabled={index === count - 1} onClick={() => move(index, 1)} aria-label="Move block down"><ChevronDown size={14}/></button><button onClick={remove} aria-label="Delete block"><Trash2 size={14}/></button></span></div>
+    <input value={String(block.data.heading || "")} placeholder="Optional section heading" onChange={(event) => update({ heading: event.target.value })}/>
+    <div className="builder-media-field"><textarea value={String(block.data.text || "")} placeholder={imageLike ? "URL or file path" : "Block content"} onChange={(event) => update({ text: event.target.value })}/>{block.type === "image" && <button type="button" onClick={() => upload((path) => update({ text: path }))} aria-label="Upload block image"><Upload size={14}/></button>}</div>
+    {imageLike && <input value={String(block.data.label || block.data.alt || "")} placeholder={block.type === "image" ? "Image description" : "Label"} onChange={(event) => update(block.type === "image" ? { alt: event.target.value } : { label: event.target.value })}/>}<details><summary>Block appearance</summary><div className="builder-block-style"><input value={String(block.data.backgroundColor || "")} placeholder="Background color" onChange={(event) => update({ backgroundColor: event.target.value })}/><div className="builder-media-field"><input value={String(block.data.backgroundImage || "")} placeholder="Background image" onChange={(event) => update({ backgroundImage: event.target.value })}/><button type="button" onClick={() => upload((path) => update({ backgroundImage: path }))}><Upload size={13}/></button></div><input value={String(block.data.textColor || "")} placeholder="Text color" onChange={(event) => update({ textColor: event.target.value })}/><select value={String(block.data.align || "left")} onChange={(event) => update({ align: event.target.value })}><option value="left">Left aligned</option><option value="center">Centered</option><option value="right">Right aligned</option></select><label>Inner spacing — {Number(block.data.padding || 0)}px<input type="range" min="0" max="160" value={Number(block.data.padding || 0)} onChange={(event) => update({ padding: Number(event.target.value) })}/></label></div></details>
   </div>;
 }
 

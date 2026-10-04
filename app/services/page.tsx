@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 export default async function Services() {
   await ensureSeedData();
   const services = await listContent("service");
-  return <PageFrame
+  return <PageFrame pageKey="services"
     kicker="B28 / Capabilities"
     title="Services"
     intro="Original film production and focused short-form storytelling from B28 Entertainment."

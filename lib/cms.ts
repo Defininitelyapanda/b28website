@@ -1,5 +1,6 @@
 import type { ContentItem, ContentType } from "./cms-types";
 import { readStore, updateStore } from "./local-store";
+import { DEFAULT_SITE_SETTINGS, normalizeSiteSettings, type SiteSettings } from "./site-settings";
 
 const now = () => new Date().toISOString();
 const uid = (prefix: string) => `${prefix}_${crypto.randomUUID()}`;
@@ -110,3 +111,23 @@ export async function listContacts() {
   const store = await readStore();
   return [...store.contacts].sort((a, b) => String(b.created_at).localeCompare(String(a.created_at))).slice(0, 100);
 }
+
+export async function getSiteSettings() {
+  const store = await readStore();
+  const row = store.settings.find((entry) => entry.key === "site-design");
+  return normalizeSiteSettings(row?.value as Partial<SiteSettings> | undefined);
+}
+
+export async function saveSiteSettings(input: Partial<SiteSettings>) {
+  const settings = normalizeSiteSettings(input);
+  await updateStore((store) => {
+    const index = store.settings.findIndex((entry) => entry.key === "site-design");
+    const row = { key: "site-design", value: settings, updated_at: now() };
+    if (index >= 0) store.settings[index] = row;
+    else store.settings.push(row);
+    store.activity.push({ id: uid("activity"), user_id: "site-builder", action: "update", object_type: "site-design", object_id: "global", detail: "Published visual design", created_at: now() });
+  });
+  return settings;
+}
+
+export { DEFAULT_SITE_SETTINGS };

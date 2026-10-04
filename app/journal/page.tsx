@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export default async function Journal() {
   await ensureSeedData();
   const articles = await listContent("article");
-  return <PageFrame
+  return <PageFrame pageKey="journal"
     kicker="B28 / Journal"
     title="From the work"
     intro="Production diaries, field notes, company news and conversations with the people behind the frame."

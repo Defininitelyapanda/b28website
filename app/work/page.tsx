@@ -10,7 +10,7 @@ export default async function Work() {
   await ensureSeedData();
   await syncYouTubeProjects();
   const projects = await listContent("project");
-  return <PageFrame
+  return <PageFrame pageKey="work"
     kicker="B28 / The archive"
     title="Projects"
     intro="Original Kenyan short films exploring relationships, family, youth, mental health and the realities carried in silence."
