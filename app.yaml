@@ -1,0 +1,14 @@
+# Wasmer Git deployments merge this file into the app configuration.
+env:
+  NEXT_PUBLIC_SITE_URL: "https://b28website.wasmer.app"
+  CMS_DATA_DIR: "/data/cms"
+  CMS_UPLOAD_DIR: "/data/uploads"
+
+volumes:
+  - name: cms-data
+    mount: /data
+
+# Persistent volumes are regional. Keep every app instance beside the volume.
+locality:
+  regions:
+    - fr-roub1

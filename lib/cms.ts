@@ -26,7 +26,9 @@ export async function searchContent(query: string) {
 
 export async function saveContent(input: Omit<ContentItem, "createdAt" | "updatedAt" | "publishedAt"> & { changeSummary?: string }, authorId: string) {
   return updateStore((store) => {
-    const index = store.content.findIndex((entry) => entry.id === input.id || entry.slug === input.slug);
+    const index = store.content.findIndex((entry) => entry.id === input.id);
+    const slugOwner = store.content.findIndex((entry) => entry.slug === input.slug);
+    if (slugOwner >= 0 && slugOwner !== index) throw new Error("CONTENT_SLUG_CONFLICT");
     const current = index >= 0 ? store.content[index] : null;
     const stamp = now();
     const id = current?.id ?? input.id ?? uid("content");
@@ -37,6 +39,17 @@ export async function saveContent(input: Omit<ContentItem, "createdAt" | "update
     store.versions.push({ id: uid("version"), content_id: id, version, snapshot: saved, author_id: authorId, summary: input.changeSummary ?? "Saved changes", created_at: stamp });
     store.activity.push({ id: uid("activity"), user_id: authorId, action: current ? "update" : "create", object_type: input.type, object_id: id, detail: input.status, created_at: stamp });
     return saved;
+  });
+}
+
+export async function deleteContent(id: string, authorId: string) {
+  return updateStore((store) => {
+    const index = store.content.findIndex((entry) => entry.id === id);
+    if (index < 0) return false;
+    const [removed] = store.content.splice(index, 1);
+    const stamp = now();
+    store.activity.push({ id: uid("activity"), user_id: authorId, action: "delete", object_type: removed.type, object_id: removed.id, detail: removed.slug, created_at: stamp });
+    return true;
   });
 }
 
@@ -65,7 +78,7 @@ export async function ensureSeedData(authorId = "system") {
     const hasRealContent = store.content.some((entry) => entry.data.demo !== true);
     if (hasRealContent) return;
     const stamp = now();
-    const records: Array<[ContentType, string, string, string, string, Record<string, unknown>]> = [
+    const records: Array<[ContentType, string, string, string, string, Record<string, unknown>, string?]> = [
       ["project", "threshold", "Threshold", "A young couple navigates love, faith, work and the difficult question of accepting support from one another.", "/media/threshold.jpg", { year: "2026", format: "Short Film", genre: "Relationship Drama", youtubeUrl: "https://www.youtube.com/watch?v=mN1VCgEjXcg", trailerUrl: "https://www.youtube.com/watch?v=9ZPaXKtFb4o" }],
       ["project", "shattered", "Shattered", "A young man is pushed to his breaking point by life, pressure and the silence around the weight he carries.", "/media/shattered.jpg", { year: "2026", format: "Short Film", genre: "Social Drama", youtubeUrl: "https://www.youtube.com/watch?v=vIvOkmZxvYg", trailerUrl: "https://www.youtube.com/watch?v=Zu9phrxJUgs" }],
       ["project", "betrayed", "Betrayed", "An official Kenyan short film from B28 Entertainment.", "/media/betrayed.jpg", { year: "2025", format: "Short Film", genre: "Family Drama", youtubeUrl: "https://www.youtube.com/watch?v=faBS1DkOivM" }],
@@ -75,20 +88,10 @@ export async function ensureSeedData(authorId = "system") {
       ["service", "film-production", "Film Production", "Original Kenyan films shaped from development through production and release.", "/media/shattered.jpg", {}],
       ["service", "short-form-storytelling", "Short-form Storytelling", "Focused visual stories made for audiences across film and digital platforms.", "/media/threshold.jpg", {}],
       ["team", "b28-entertainment", "B28 Entertainment", "Entertainment made, simply for you.", "/media/b28-logo.jpg", { role: "Kenyan film studio" }],
+      ["article", "testimonials", "Testimonials", "What the community had to say about us.", "/media/b28-logo.jpg", { category: "Community" }, "Best experience being on set with the team — Trippy (crew)."],
     ];
-    store.content = records.map((record, index) => ({ id: uid("content"), type: record[0], slug: record[1], title: record[2], status: "published", excerpt: record[3], body: record[3], coverImage: record[4], data: record[5], featured: record[0] === "project" && index < 3, sortOrder: index, publishedAt: stamp, scheduledAt: null, createdAt: stamp, updatedAt: stamp }));
+    store.content = records.map((record, index) => ({ id: uid("content"), type: record[0], slug: record[1], title: record[2], status: "published", excerpt: record[3], body: record[6] ?? record[3], coverImage: record[4], data: record[5], featured: record[0] === "project" && index < 3, sortOrder: index, publishedAt: stamp, scheduledAt: null, createdAt: stamp, updatedAt: stamp }));
     store.activity.push({ id: uid("activity"), user_id: authorId, action: "seed", object_type: "system", object_id: "official-content", detail: "Official B28 channel catalogue", created_at: stamp });
-  });
-}
-
-export async function ensureAdmin(user: { userId: string; email: string; displayName: string }) {
-  return updateStore((store) => {
-    const existing = store.users.find((entry) => entry.id === user.userId);
-    if (existing) return existing;
-    const stamp = now();
-    const created = { id: user.userId, email: user.email, name: user.displayName, role: store.users.length === 0 ? "super_admin" : "editor", active: true, created_at: stamp, updated_at: stamp };
-    store.users.push(created);
-    return created;
   });
 }
 

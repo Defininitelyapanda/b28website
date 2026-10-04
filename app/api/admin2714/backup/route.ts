@@ -2,13 +2,12 @@ import { createHash } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { NextResponse } from "next/server";
-import { requireAdminApi } from "@/lib/authz";
 import { readStore, updateStore } from "@/lib/local-store";
+import { STUDIO_USER_ID } from "@/lib/studio-identity";
 
 export const runtime = "nodejs";
+
 export async function POST() {
-  const admin = await requireAdminApi();
-  if (!admin || !["super_admin", "admin"].includes(admin.role)) return NextResponse.json({ success: false, error: { code: "FORBIDDEN", message: "Administrator access required." } }, { status: 403 });
   try {
     const store = await readStore();
     const stamp = new Date().toISOString();
@@ -18,7 +17,7 @@ export async function POST() {
     const directory = path.join(process.cwd(), "data", "backups");
     await mkdir(directory, { recursive: true });
     await writeFile(path.join(directory, `${id}.json`), payload, "utf8");
-    await updateStore((current) => { current.backups.push({ id, status: "verified", size: Buffer.byteLength(payload), checksum, created_by: admin.userId, created_at: stamp }); });
+    await updateStore((current) => { current.backups.push({ id, status: "verified", size: Buffer.byteLength(payload), checksum, created_by: STUDIO_USER_ID, created_at: stamp }); });
     return NextResponse.json({ success: true, data: { id, status: "verified", size: Buffer.byteLength(payload), checksum } });
   } catch (error) {
     console.error("backup_failed", error);
