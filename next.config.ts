@@ -19,7 +19,12 @@ const contentSecurityPolicy = [
   "frame-ancestors 'self'",
 ].join("; ");
 
+const isVinextBuild = process.env.npm_lifecycle_event?.includes("vinext") === true;
+
 const nextConfig: NextConfig = {
+  ...(!isVinextBuild && { turbopack: {
+    resolveAlias: { "cloudflare:workers": "./lib/cloudflare-workers-shim.ts" },
+  } }),
   async headers() {
     return [{ source: "/(.*)", headers: [
       { key: "X-Content-Type-Options", value: "nosniff" },

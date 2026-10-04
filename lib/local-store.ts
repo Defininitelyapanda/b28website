@@ -1,6 +1,7 @@
 import { mkdir, open, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { ContentItem } from "./cms-types";
+import { cloudflareCmsDatabase, type CmsDatabase } from "./cloudflare-bindings";
 
 export type LocalStore = {
   content: ContentItem[];
@@ -15,12 +16,24 @@ export type LocalStore = {
 
 const isBuildPhase = process.env.B28_BUILD_PHASE === "1";
 const configuredDataDirectory = isBuildPhase ? undefined : process.env.CMS_DATA_DIR?.trim();
-export const hasPersistentDataDirectory = Boolean(configuredDataDirectory);
+export const hasPersistentDataDirectory = Boolean(configuredDataDirectory) || Boolean(cloudflareCmsDatabase());
 const dataDirectory = configuredDataDirectory ? path.resolve(configuredDataDirectory) : path.join(process.cwd(), "data");
 const storePath = path.join(dataDirectory, "cms.json");
 const lockPath = path.join(dataDirectory, "cms.lock");
 let writes = Promise.resolve();
 const emptyStore = (): LocalStore => ({ content: [], versions: [], contacts: [], media: [], settings: [], navigation: [], activity: [], backups: [] });
+
+async function readD1Store(database: CmsDatabase): Promise<LocalStore> {
+  await database.prepare("CREATE TABLE IF NOT EXISTS b28_cms_state (id INTEGER PRIMARY KEY CHECK (id = 1), value TEXT NOT NULL, updated_at TEXT NOT NULL)").run();
+  const row = await database.prepare("SELECT value FROM b28_cms_state WHERE id = 1").first<{ value: string }>();
+  if (!row) return emptyStore();
+  return { ...emptyStore(), ...JSON.parse(row.value) } as LocalStore;
+}
+
+async function writeD1Store(database: CmsDatabase, store: LocalStore) {
+  await database.prepare("INSERT INTO b28_cms_state (id, value, updated_at) VALUES (1, ?, ?) ON CONFLICT(id) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at")
+    .bind(JSON.stringify(store), new Date().toISOString()).run();
+}
 
 const delay = (milliseconds: number) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
@@ -57,6 +70,8 @@ async function writeStore(store: LocalStore) {
 }
 
 export async function readStore(): Promise<LocalStore> {
+  const database = cloudflareCmsDatabase();
+  if (database) return readD1Store(database);
   try {
     return { ...emptyStore(), ...JSON.parse(await readFile(storePath, "utf8")) } as LocalStore;
   } catch (error) {
@@ -73,6 +88,18 @@ export function updateStore<T>(change: (store: LocalStore) => T | Promise<T>): P
   let rejectResult!: (reason?: unknown) => void;
   const result = new Promise<T>((resolve, reject) => { resolveResult = resolve; rejectResult = reject; });
   writes = writes.catch(() => undefined).then(async () => {
+    const database = cloudflareCmsDatabase();
+    if (database) {
+      try {
+        const store = await readD1Store(database);
+        const value = await change(store);
+        await writeD1Store(database, store);
+        resolveResult(value);
+      } catch (error) {
+        rejectResult(error);
+      }
+      return;
+    }
     let release: (() => Promise<void>) | undefined;
     try {
       release = await acquireWriteLock();

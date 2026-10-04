@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { NextResponse } from "next/server";
-import { uploadsDirectory } from "@/lib/storage";
+import { getCloudflareMedia, uploadsDirectory } from "@/lib/storage";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +13,11 @@ const contentTypes: Record<string, string> = {
 export async function GET(_request: Request, { params }: { params: Promise<{ path: string[] }> }) {
   const segments = (await params).path;
   if (!segments.length || segments.some((segment) => !segment || segment === "." || segment === ".." || path.basename(segment) !== segment)) return new NextResponse("Not found", { status: 404 });
+  const object = await getCloudflareMedia(`uploads/${segments.join("/")}`);
+  if (object !== undefined) {
+    if (!object) return new NextResponse("Not found", { status: 404 });
+    return new NextResponse(object.body, { headers: { "Content-Type": object.httpMetadata?.contentType || "application/octet-stream", ETag: object.etag, "Cache-Control": "public, max-age=31536000, immutable" } });
+  }
   const root = path.resolve(uploadsDirectory());
   const filePath = path.resolve(root, ...segments);
   if (!filePath.startsWith(`${root}${path.sep}`)) return new NextResponse("Not found", { status: 404 });

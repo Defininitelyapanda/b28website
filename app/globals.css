@@ -1,5 +1,5 @@
-@import "tailwindcss";
-@import "tw-animate-css";
+@import "../node_modules/tailwindcss/index.css";
+@import "../node_modules/tw-animate-css/dist/tw-animate.css";
 @import "../vendor/shadcn-tailwind-4.13.0.css";
 
 :root{--ink:#080909;--coal:#111313;--panel:#171919;--paper:#ece9e1;--muted:#9b9b94;--line:rgba(236,233,225,.16);--amber:#d99042;--background:var(--ink);--foreground:var(--paper);--card:var(--panel);--card-foreground:var(--paper);--popover:var(--panel);--popover-foreground:var(--paper);--primary:var(--paper);--primary-foreground:var(--ink);--secondary:#242626;--secondary-foreground:var(--paper);--muted-foreground:var(--muted);--accent:var(--amber);--accent-foreground:var(--ink);--destructive:#ef6d6d;--border:var(--line);--input:var(--line);--ring:var(--amber);--radius:.25rem;--sidebar:#101212;--sidebar-foreground:var(--paper);--sidebar-primary:var(--amber);--sidebar-primary-foreground:var(--ink);--sidebar-accent:#1e2020;--sidebar-accent-foreground:var(--paper);--sidebar-border:var(--line);--sidebar-ring:var(--amber)}

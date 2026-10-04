@@ -1,8 +1,7 @@
 import { createHash } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
-import path from "node:path";
 import { NextResponse } from "next/server";
 import { readStore, updateStore } from "@/lib/local-store";
+import { storeBackup } from "@/lib/storage";
 import { STUDIO_USER_ID } from "@/lib/studio-identity";
 
 export const runtime = "nodejs";
@@ -14,9 +13,7 @@ export async function POST() {
     const id = `backup_${crypto.randomUUID()}`;
     const payload = JSON.stringify({ version: 1, createdAt: stamp, content: store.content, settings: store.settings, navigation: store.navigation });
     const checksum = createHash("sha256").update(payload).digest("hex");
-    const directory = path.join(process.cwd(), "data", "backups");
-    await mkdir(directory, { recursive: true });
-    await writeFile(path.join(directory, `${id}.json`), payload, "utf8");
+    await storeBackup(id, payload);
     await updateStore((current) => { current.backups.push({ id, status: "verified", size: Buffer.byteLength(payload), checksum, created_by: STUDIO_USER_ID, created_at: stamp }); });
     return NextResponse.json({ success: true, data: { id, status: "verified", size: Buffer.byteLength(payload), checksum } });
   } catch (error) {

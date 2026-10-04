@@ -12,17 +12,17 @@ Choose **+**, select the content type, add the title and clean URL slug, write t
 
 Pages publish at `/{slug}` and are added to public navigation. Projects publish to the Work archive, journal articles publish below About and in the Journal archive, services publish to Services, and team members publish below About.
 
-On production, publishing requires the persistent CMS volume configured in `app.yaml`. Check `/api/health`: `checks.environment` must say `persistent`. If it says `ephemeral`, do not publish; redeploy after confirming the Wasmer app is using the repository configuration.
+On the Cloudflare production deployment, publishing uses D1 database `b28-cms` and R2 bucket `b28-media`. Check `/api/health`: the database and storage checks must say `healthy`, and `checks.environment` must say `persistent`. If it says `ephemeral`, do not publish; redeploy after confirming the Cloudflare bindings. Wasmer deployments instead use the persistent CMS volume configured in `app.yaml`.
 
 The builder keeps a local recovery copy after a short pause and provides undo and redo during the editing session. Every server save also creates an immutable version.
 
 ## Media
 
-Upload JPG, PNG, WebP, AVIF, MP4, WebM, MP3, WAV or PDF files through the media endpoint. Files receive generated local filenames; original filenames are metadata only. Add meaningful alt text before using an image. Keep media sizes appropriate for the available local disk space.
+Upload JPG, PNG, WebP, AVIF, MP4, WebM, MP3, WAV or PDF files through the media endpoint. Files receive generated filenames; original filenames are metadata only. Add meaningful alt text before using an image. Cloudflare stores these files in R2; local and Wasmer environments use their configured filesystem storage.
 
 ## Recovery and backups
 
-Check `/api/health` if publishing becomes unavailable. The backup endpoint writes a checksummed JSON snapshot into `data/backups`; recovery is intentionally kept outside the visual editing interface.
+Check `/api/health` if publishing becomes unavailable. The backup endpoint writes a checksummed JSON snapshot to R2 on Cloudflare or `data/backups` on filesystem deployments; recovery is intentionally kept outside the visual editing interface.
 
 ## Demo content
 

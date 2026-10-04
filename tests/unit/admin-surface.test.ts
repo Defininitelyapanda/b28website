@@ -39,3 +39,20 @@ test("Wasmer deployment uses one persistent regional CMS volume", async () => {
   assert.match(buildScript, /B28_BUILD_PHASE:\s*["']1["']/);
   assert.match(store, /isBuildPhase \? undefined : process\.env\.CMS_DATA_DIR/);
 });
+
+test("Cloudflare deployment binds persistent D1 and R2 storage", async () => {
+  const [config, packageFile, deployScript, store, storage] = await Promise.all([
+    readFile(new URL("../../cloudflare.config.ts", import.meta.url), "utf8"),
+    readFile(new URL("../../package.json", import.meta.url), "utf8"),
+    readFile(new URL("../../scripts/vinext.mjs", import.meta.url), "utf8"),
+    readFile(new URL("../../lib/local-store.ts", import.meta.url), "utf8"),
+    readFile(new URL("../../lib/storage.ts", import.meta.url), "utf8"),
+  ]);
+  assert.match(config, /CMS_DB:\s*bindings\.d1\(\{ name: ["']b28-cms["']/);
+  assert.match(config, /CMS_MEDIA:\s*bindings\.r2\(\{ name: ["']b28-media["']/);
+  assert.match(config, /NEXT_PUBLIC_SITE_URL/);
+  assert.match(packageFile, /deploy:vinext/);
+  assert.match(deployScript, /b28-entertainment-platform\.tonniekye\.workers\.dev/);
+  assert.match(store, /cloudflareCmsDatabase/);
+  assert.match(storage, /cloudflareMediaBucket/);
+});
