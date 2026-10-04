@@ -1,4 +1,6 @@
 # Wasmer Git deployments merge this file into the app configuration.
+kind: wasmer.io/App.v1
+
 env:
   NEXT_PUBLIC_SITE_URL: "https://b28website.wasmer.app"
   CMS_DATA_DIR: "/data/cms"

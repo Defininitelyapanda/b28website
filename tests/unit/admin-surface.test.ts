@@ -30,6 +30,7 @@ test("Wasmer deployment uses one persistent regional CMS volume", async () => {
     readFile(new URL("../../scripts/next-build.mjs", import.meta.url), "utf8"),
     readFile(new URL("../../lib/local-store.ts", import.meta.url), "utf8"),
   ]);
+  assert.match(config, /^kind:\s*wasmer\.io\/App\.v1/m);
   assert.match(config, /CMS_DATA_DIR:\s*["']?\/data\/cms/);
   assert.match(config, /CMS_UPLOAD_DIR:\s*["']?\/data\/uploads/);
   assert.match(config, /mount:\s*\/data/);
