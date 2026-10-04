@@ -24,9 +24,17 @@ test("hidden route opens the visual builder without an authentication prompt", a
 });
 
 test("Wasmer deployment uses one persistent regional CMS volume", async () => {
-  const config = await readFile(new URL("../../app.yaml", import.meta.url), "utf8");
+  const [config, packageFile, buildScript, store] = await Promise.all([
+    readFile(new URL("../../app.yaml", import.meta.url), "utf8"),
+    readFile(new URL("../../package.json", import.meta.url), "utf8"),
+    readFile(new URL("../../scripts/next-build.mjs", import.meta.url), "utf8"),
+    readFile(new URL("../../lib/local-store.ts", import.meta.url), "utf8"),
+  ]);
   assert.match(config, /CMS_DATA_DIR:\s*["']?\/data\/cms/);
   assert.match(config, /CMS_UPLOAD_DIR:\s*["']?\/data\/uploads/);
   assert.match(config, /mount:\s*\/data/);
   assert.match(config, /fr-roub1/);
+  assert.match(packageFile, /node scripts\/next-build\.mjs/);
+  assert.match(buildScript, /B28_BUILD_PHASE:\s*["']1["']/);
+  assert.match(store, /isBuildPhase \? undefined : process\.env\.CMS_DATA_DIR/);
 });

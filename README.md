@@ -34,6 +34,8 @@ There is no login or account authentication. Knowledge of `/admin2714` is the on
 
 These runtime files are ignored by Git. A hosted deployment must attach persistent storage for these locations or migrate them to a durable database/object store. The committed `app.yaml` configures the Wasmer deployment with a volume mounted at `/data`, pins the app to the volume-supported `fr-roub1` region, and sets the required URLs and `CMS_*` variables. Production publishing returns a service error instead of claiming success when persistent storage is missing.
 
+The production build intentionally uses the repository's local seed data. Wasmer mounts `/data` only when the deployed app starts, so `npm run build` isolates prerendering from the runtime-only `CMS_*` paths.
+
 Published CMS destinations are:
 
 - Page: `/{slug}` and an automatic public navigation link

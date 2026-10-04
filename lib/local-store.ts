@@ -13,7 +13,8 @@ export type LocalStore = {
   backups: Array<Record<string, unknown>>;
 };
 
-const configuredDataDirectory = process.env.CMS_DATA_DIR?.trim();
+const isBuildPhase = process.env.B28_BUILD_PHASE === "1";
+const configuredDataDirectory = isBuildPhase ? undefined : process.env.CMS_DATA_DIR?.trim();
 export const hasPersistentDataDirectory = Boolean(configuredDataDirectory);
 const dataDirectory = configuredDataDirectory ? path.resolve(configuredDataDirectory) : path.join(process.cwd(), "data");
 const storePath = path.join(dataDirectory, "cms.json");

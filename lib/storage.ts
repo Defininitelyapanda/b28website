@@ -5,7 +5,7 @@ const allowed = new Set(["image/jpeg", "image/png", "image/webp", "image/avif", 
 const maxBytes = 250 * 1024 * 1024;
 
 export function uploadsDirectory() {
-  const configured = process.env.CMS_UPLOAD_DIR?.trim();
+  const configured = process.env.B28_BUILD_PHASE === "1" ? undefined : process.env.CMS_UPLOAD_DIR?.trim();
   return configured ? path.resolve(configured) : path.join(process.cwd(), "public", "uploads");
 }
 
