@@ -13,7 +13,7 @@ const contentSecurityPolicy = [
   "style-src 'self' 'unsafe-inline'",
   `script-src ${scriptSources}`,
   "connect-src 'self'",
-  "frame-src 'self'",
+  "frame-src 'self' https:",
   "base-uri 'self'",
   "form-action 'self'",
   "frame-ancestors 'self'",

@@ -68,3 +68,20 @@ test("dynamic pages cannot be held open by no-op CMS writes or the YouTube feed"
   assert.match(store, /JSON\.stringify\(store\) !== previous/);
   assert.match(youtube, /AbortSignal\.timeout\(FEED_TIMEOUT_MS\)/);
 });
+
+test("visual editor supports inline controls, history shortcuts, anchored elements, and secure embeds", async () => {
+  const [builder, runtime, inspector, config] = await Promise.all([
+    readFile(new URL("../../components/builder/site-builder.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../../components/public/visual-editor-runtime.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../../components/builder/element-inspector.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../../next.config.ts", import.meta.url), "utf8"),
+  ]);
+  assert.match(builder, /designHistoryIndex/);
+  assert.match(runtime, /contenteditable/);
+  assert.match(runtime, /visual-inline-toolbar/);
+  assert.match(runtime, /action: event\.shiftKey \? "redo" : "undo"/);
+  assert.match(runtime, /anchor\.after\(node\)/);
+  assert.match(inspector, /Video \/ embed/);
+  assert.match(inspector, /Background image/);
+  assert.match(config, /frame-src 'self' https:/);
+});

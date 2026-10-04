@@ -21,10 +21,17 @@ test("clamps layout controls and strips markup from advanced CSS", () => {
 test("preserves individual element edits and custom canvas elements", () => {
   const settings = normalizeSiteSettings({
     elementOverrides: [{ id: "hero-title", path: "/", selector: ".site-shell h1", tag: "h1", text: "Changed", styles: { color: "#ffffff", "font-size": "72px" } }],
-    customElements: [{ id: "new-copy", path: "/about", type: "text", content: "Added in the canvas", src: "", href: "", order: 0, styles: { padding: "20px" } }],
+    customElements: [
+      { id: "new-copy", path: "/about", type: "text", content: "Added in the canvas", src: "", href: "", order: 0, anchorSelector: ".site-shell main > section:first-child", placement: "after", styles: { padding: "20px" } },
+      { id: "showreel", path: "/about", type: "embed", content: "Showreel", src: "https://youtu.be/example", href: "", order: 1, anchorSelector: ".site-shell main", placement: "inside", styles: { width: "100%" } },
+    ],
   } as never);
   assert.equal(settings.elementOverrides[0].text, "Changed");
   assert.equal(settings.elementOverrides[0].styles["font-size"], "72px");
   assert.equal(settings.customElements[0].content, "Added in the canvas");
   assert.equal(settings.customElements[0].path, "/about");
+  assert.equal(settings.customElements[0].anchorSelector, ".site-shell main > section:first-child");
+  assert.equal(settings.customElements[0].placement, "after");
+  assert.equal(settings.customElements[1].type, "embed");
+  assert.equal(settings.customElements[1].src, "https://youtu.be/example");
 });
