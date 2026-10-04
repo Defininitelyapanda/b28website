@@ -84,36 +84,3 @@ img,video,svg{max-width:100%}
   .project-grid{grid-template-columns:minmax(0,1fr);gap:3rem}
   .project-info>p{display:block}
 }
-
-.password-field{position:relative;display:block}
-.password-field input{padding-right:3rem}
-.password-toggle{position:absolute;right:0;bottom:.55rem;width:2.25rem;height:2.25rem;border:0;background:transparent;color:var(--muted);display:grid;place-items:center;cursor:pointer}
-.password-toggle:hover,.password-toggle:focus-visible{color:var(--paper)}
-.login-error{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:1rem;margin:1.25rem 0;padding:1rem;border:1px solid #ef6d6d;background:rgba(239,109,109,.08)}
-.login-error strong{display:block;color:#ff9e9e}
-.login-error p{margin:.25rem 0 0;color:#d7d3cc;font-size:.88rem}
-.login-error .admin-button{flex:0 0 auto}
-@media(max-width:480px){.login-error{align-items:flex-start;flex-direction:column}.login-error .admin-button{width:100%}}
-
-.admin-login-page{min-height:100svh;display:grid;place-items:center;padding:2rem 1rem;background:radial-gradient(circle at top right,rgba(217,144,66,.15),transparent 35%),var(--ink)}
-.admin-login-panel{width:min(100%,520px);padding:clamp(1.5rem,5vw,3rem)}
-.admin-login-panel h1{font-size:clamp(2.5rem,8vw,4.5rem);line-height:.9;letter-spacing:-.05em;margin:.5rem 0 1.5rem}
-.admin-login-panel>p{color:var(--muted)}
-.admin-login-icon{width:56px;height:56px;border:1px solid var(--line);display:grid;place-items:center;margin-bottom:2rem;color:var(--amber)}
-.google-signin{width:100%;min-height:52px;margin:1.25rem 0;background:var(--paper);color:var(--ink)}
-.google-signin:hover{background:var(--amber)}
-.admin-login-note{font-size:.78rem;overflow-wrap:anywhere}
-.admin-login-note strong{color:var(--paper)}
-.admin-signout{border:0;background:none;color:var(--muted);padding:0;text-align:left;cursor:pointer}
-.admin-signout:hover{color:var(--paper)}
-.legal-admin-slot{display:inline-flex;justify-content:flex-end;min-width:3.25rem;min-height:1em}
-@media(max-width:640px){.legal-admin-slot{justify-content:flex-start}}
-.passkey-settings{margin-top:1rem}
-.passkey-settings>p{color:var(--muted)}
-.passkey-settings>code{display:inline-block;margin:.25rem 0 1.25rem;padding:.45rem .65rem;border:1px solid var(--line);color:var(--amber)}
-.passkey-list{display:grid;gap:.65rem;margin-bottom:1rem}
-.passkey-row{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:1rem;border:1px solid var(--line)}
-.passkey-row small{display:block;margin-top:.3rem;color:var(--muted)}
-.passkey-enroll{display:flex;align-items:end;gap:.75rem;margin-top:1rem}
-.passkey-enroll label{display:grid;flex:1;gap:.3rem;font-size:.7rem;text-transform:uppercase;letter-spacing:.08em}
-@media(max-width:640px){.passkey-row,.passkey-enroll{align-items:stretch;flex-direction:column}}

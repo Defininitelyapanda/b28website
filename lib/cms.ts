@@ -1,6 +1,5 @@
 import type { ContentItem, ContentType } from "./cms-types";
 import { readStore, updateStore } from "./local-store";
-import { isAdminEmail } from "./admin-identity";
 
 const now = () => new Date().toISOString();
 const uid = (prefix: string) => `${prefix}_${crypto.randomUUID()}`;
@@ -79,26 +78,6 @@ export async function ensureSeedData(authorId = "system") {
     ];
     store.content = records.map((record, index) => ({ id: uid("content"), type: record[0], slug: record[1], title: record[2], status: "published", excerpt: record[3], body: record[3], coverImage: record[4], data: record[5], featured: record[0] === "project" && index < 3, sortOrder: index, publishedAt: stamp, scheduledAt: null, createdAt: stamp, updatedAt: stamp }));
     store.activity.push({ id: uid("activity"), user_id: authorId, action: "seed", object_type: "system", object_id: "official-content", detail: "Official B28 channel catalogue", created_at: stamp });
-  });
-}
-
-export async function ensureAdmin(user: { userId: string; email: string; displayName: string }) {
-  return updateStore((store) => {
-    for (const account of store.users) {
-      if (!isAdminEmail(account.email)) account.active = false;
-    }
-    const existing = store.users.find((entry) => entry.id === user.userId);
-    if (existing) {
-      if (isAdminEmail(existing.email)) {
-        existing.role = "super_admin";
-        existing.active = true;
-      }
-      return existing;
-    }
-    const stamp = now();
-    const created = { id: user.userId, email: user.email, name: user.displayName, role: isAdminEmail(user.email) ? "super_admin" : "editor", active: true, created_at: stamp, updated_at: stamp };
-    store.users.push(created);
-    return created;
   });
 }
 

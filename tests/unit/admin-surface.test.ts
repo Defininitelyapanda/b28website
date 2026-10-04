@@ -7,13 +7,12 @@ test("public surfaces do not advertise admin access", async () => {
     readFile(new URL("../../components/public/site-chrome.tsx", import.meta.url), "utf8"),
     readFile(new URL("../../app/maintenance/page.tsx", import.meta.url), "utf8"),
   ]);
-  assert.doesNotMatch(chrome, /AdminAccessLink|href=["']\/admin/);
-  assert.doesNotMatch(maintenance, /href=["']\/admin|Admin access/);
+  assert.doesNotMatch(chrome, /AdminAccessLink|admin2714|href=["']\/admin/);
+  assert.doesNotMatch(maintenance, /admin2714|href=["']\/admin|Admin access/);
 });
 
-test("standard login does not reveal the approved email", async () => {
-  const login = await readFile(new URL("../../app/admin/login/page.tsx", import.meta.url), "utf8");
-  assert.doesNotMatch(login, /ADMIN_EMAIL|b28entertainment@gmail\.com|tonniekye@gmail\.com|Authorized account/);
-  assert.match(login, /Continue with Google/);
-  assert.doesNotMatch(login, /login\/passkey/);
+test("hidden studio does not include an authentication prompt", async () => {
+  const studio = await readFile(new URL("../../app/admin2714/page.tsx", import.meta.url), "utf8");
+  assert.doesNotMatch(studio, /signIn|Google|passkey|password|ADMIN_EMAIL/);
+  assert.match(studio, /AdminStudio/);
 });

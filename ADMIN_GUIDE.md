@@ -1,14 +1,8 @@
 # B28 admin guide
 
-Enter `/admin` directly in the browser address bar and continue with Google. The login screen intentionally does not reveal the approved account, and there are no Admin links on the public website.
+Enter `/admin2714` directly in the browser address bar. There is no login screen, Google authentication, password, or passkey. The route is intentionally absent from the public website.
 
-## Passkey recovery
-
-After signing in with Google, use **Passkey recovery** in the admin settings to add a passkey for a trusted device or password manager. Give each passkey a recognizable name and register more than one if practical. Passkeys can be listed and revoked from the same settings panel, but only a Google-authenticated session can add one.
-
-If Google sign-in is unavailable, enter `/admin/login/passkey` directly. This recovery address is intentionally unlinked. A passkey session has the same editorial permissions but cannot enroll additional passkeys.
-
-Passkey records live in `data/cms.json`. Production must use persistent storage and HTTPS; deleting or replacing the data file removes the recovery credentials.
+Anyone who learns this path can use the studio and modify content. Treat the URL as private and change the route in the code if it becomes exposed.
 
 ## Publish work
 
@@ -26,7 +20,7 @@ New contact enquiries appear under **Contact pipeline** with the `NEW` state. Re
 
 ## Recovery and backups
 
-The protected **Recovery** route works independently of the main dashboard. Check `/api/health` first. A backup request writes a checksummed JSON snapshot of content, settings and navigation into `data/backups`. Never restore a backup without separately confirming the target and backup ID.
+The `/admin2714/recovery` route works independently of the main dashboard. Check `/api/health` first. A backup request writes a checksummed JSON snapshot of content, settings and navigation into `data/backups`. Never restore a backup without separately confirming the target and backup ID.
 
 ## Demo content
 
