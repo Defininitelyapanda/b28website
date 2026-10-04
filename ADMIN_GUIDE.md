@@ -1,6 +1,14 @@
 # B28 admin guide
 
-Open `/admin` and sign in with the password configured in `.env.local`. The local administrator has full editorial access.
+Enter `/admin` directly in the browser address bar and continue with Google. The login screen intentionally does not reveal the approved account, and there are no Admin links on the public website.
+
+## Passkey recovery
+
+After signing in with Google, use **Passkey recovery** in the admin settings to add a passkey for a trusted device or password manager. Give each passkey a recognizable name and register more than one if practical. Passkeys can be listed and revoked from the same settings panel, but only a Google-authenticated session can add one.
+
+If Google sign-in is unavailable, enter `/admin/login/passkey` directly. This recovery address is intentionally unlinked. A passkey session has the same editorial permissions but cannot enroll additional passkeys.
+
+Passkey records live in `data/cms.json`. Production must use persistent storage and HTTPS; deleting or replacing the data file removes the recovery credentials.
 
 ## Publish work
 

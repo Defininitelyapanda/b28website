@@ -1,6 +1,6 @@
 # B28 Entertainment
 
-A Next.js website and editorial CMS for B28 Entertainment. The public site has no ChatGPT or OpenAI dependency. Administration uses Google OAuth and is restricted to the verified `b28entertainment@gmail.com` account.
+A Next.js website and editorial CMS for B28 Entertainment. The public site has no ChatGPT or OpenAI dependency. Administration uses Google OAuth and is restricted to one verified B28 account. An enrolled passkey can be used as a recovery method if Google sign-in is unavailable.
 
 ## Run locally
 
@@ -35,9 +35,23 @@ Generate `AUTH_SECRET` with `npx auth secret`. Never commit the real values. In 
 
 The security boundary is enforced in three places:
 
-- `/admin` routes require a signed Google session.
+- `/admin` routes require a signed Google or registered-passkey session.
 - The Google profile must have a verified email matching `ADMIN_EMAIL` exactly.
 - Admin API routes repeat the server-side session and role check.
+
+Google OAuth only requires a free OAuth client configured in Google Cloud Console. The website and its data do not need to be hosted on Google Cloud, and billing is not required for this sign-in configuration.
+
+## Passkey recovery
+
+After signing in with the approved Google account, open **Passkey recovery** in the admin settings and register at least one passkey. Registration requires the Google-authenticated session; a session created by a passkey cannot enroll another passkey.
+
+The recovery screen is intentionally not linked from the public site or normal admin login. Staff should store this private address safely:
+
+```text
+https://YOUR_DOMAIN/admin/login/passkey
+```
+
+Passkeys require HTTPS in production; localhost HTTP is supported for development. Credential public keys, counters and challenge records are saved with the CMS data, so the deployment must provide durable storage for `data/cms.json`. Losing that file removes enrolled passkeys.
 
 ## Runtime data
 
