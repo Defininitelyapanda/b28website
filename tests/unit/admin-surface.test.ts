@@ -16,3 +16,11 @@ test("hidden studio does not include an authentication prompt", async () => {
   assert.doesNotMatch(studio, /signIn|Google|passkey|password|ADMIN_EMAIL/);
   assert.match(studio, /AdminStudio/);
 });
+
+test("Wasmer deployment uses one persistent regional CMS volume", async () => {
+  const config = await readFile(new URL("../../app.yaml", import.meta.url), "utf8");
+  assert.match(config, /CMS_DATA_DIR:\s*["']?\/data\/cms/);
+  assert.match(config, /CMS_UPLOAD_DIR:\s*["']?\/data\/uploads/);
+  assert.match(config, /mount:\s*\/data/);
+  assert.match(config, /fr-roub1/);
+});

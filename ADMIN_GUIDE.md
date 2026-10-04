@@ -10,6 +10,8 @@ Choose **New**, select the content type, add the title and clean URL slug, write
 
 Pages publish at `/{slug}` and are added to public navigation. Projects publish to the Work archive, journal articles publish below About and in the Journal archive, services publish to Services, and team members publish below About.
 
+On production, publishing requires the persistent CMS volume configured in `app.yaml`. Check `/api/health`: `checks.environment` must say `persistent`. If it says `ephemeral`, do not publish; redeploy after confirming the Wasmer app is using the repository configuration.
+
 The editor autosaves a local recovery copy after a short pause. If a tab or browser closes unexpectedly, return to the editor and choose **Restore**. Every server save also creates an immutable version. Version endpoints support review and restore without overwriting history.
 
 ## Media

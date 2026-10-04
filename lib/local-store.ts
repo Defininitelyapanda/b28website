@@ -14,6 +14,7 @@ export type LocalStore = {
 };
 
 const configuredDataDirectory = process.env.CMS_DATA_DIR?.trim();
+export const hasPersistentDataDirectory = Boolean(configuredDataDirectory);
 const dataDirectory = configuredDataDirectory ? path.resolve(configuredDataDirectory) : path.join(process.cwd(), "data");
 const storePath = path.join(dataDirectory, "cms.json");
 const lockPath = path.join(dataDirectory, "cms.lock");
