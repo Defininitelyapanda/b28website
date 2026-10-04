@@ -3,6 +3,7 @@ import test from "node:test";
 import { ADMIN_EMAIL, isAdminEmail, safeAdminReturnPath } from "../../lib/admin-identity.ts";
 
 test("only the configured administrator email is accepted", () => {
+  assert.equal(ADMIN_EMAIL, "tonniekye@gmail.com");
   assert.equal(isAdminEmail(ADMIN_EMAIL), true);
   assert.equal(isAdminEmail(ADMIN_EMAIL.toLocaleUpperCase()), true);
   assert.equal(isAdminEmail("random@example.com"), false);

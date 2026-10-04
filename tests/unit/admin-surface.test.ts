@@ -13,7 +13,7 @@ test("public surfaces do not advertise admin access", async () => {
 
 test("standard login does not reveal the approved email", async () => {
   const login = await readFile(new URL("../../app/admin/login/page.tsx", import.meta.url), "utf8");
-  assert.doesNotMatch(login, /ADMIN_EMAIL|b28entertainment@gmail\.com|Authorized account/);
+  assert.doesNotMatch(login, /ADMIN_EMAIL|b28entertainment@gmail\.com|tonniekye@gmail\.com|Authorized account/);
   assert.match(login, /Continue with Google/);
   assert.doesNotMatch(login, /login\/passkey/);
 });

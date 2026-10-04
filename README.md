@@ -25,13 +25,14 @@ Set these environment variables locally and on the hosting platform:
 
 ```env
 AUTH_SECRET="a-long-random-secret"
+ADMIN_EMAIL="tonniekye@gmail.com"
 AUTH_GOOGLE_ID="your-google-oauth-client-id"
 AUTH_GOOGLE_SECRET="your-google-oauth-client-secret"
 AUTH_URL="https://YOUR_DOMAIN"
 NEXT_PUBLIC_SITE_URL="https://YOUR_DOMAIN"
 ```
 
-Generate `AUTH_SECRET` with `npx auth secret`. Never commit the real values. In Google Cloud, keep the OAuth app internal/testing with only `b28entertainment@gmail.com` added as a test user until it is ready for production.
+Generate `AUTH_SECRET` with `npx auth secret`. Never commit the real values. In Google Cloud, keep the OAuth app internal/testing with only the administrator configured in `ADMIN_EMAIL` added as a test user until it is ready for production.
 
 The security boundary is enforced in three places:
 
