@@ -1,5 +1,6 @@
 import type { CSSProperties, ReactNode } from "react";
 import type { PageDesign, SiteSettings } from "@/lib/site-settings";
+import { VisualEditorRuntime } from "./visual-editor-runtime";
 
 export function SiteTheme({ settings, page, children }: { settings: SiteSettings; page?: PageDesign; children: ReactNode }) {
   const variables = {
@@ -28,5 +29,6 @@ export function SiteTheme({ settings, page, children }: { settings: SiteSettings
   return <div className="site-shell" style={variables}>
     {settings.customCss ? <style dangerouslySetInnerHTML={{ __html: settings.customCss }}/>: null}
     {children}
+    <VisualEditorRuntime overrides={settings.elementOverrides} customElements={settings.customElements}/>
   </div>;
 }

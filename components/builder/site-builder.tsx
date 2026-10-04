@@ -5,8 +5,10 @@ import Link from "next/link";
 import { ArrowLeft, ChevronDown, ChevronUp, Copy, ExternalLink, FileText, Laptop, Monitor, Plus, Redo2, Save, Search, Send, Smartphone, Trash2, Undo2, Upload, X } from "lucide-react";
 import type { ContentBlock, ContentItem, ContentStatus, ContentType } from "@/lib/cms-types";
 import { contentPath } from "@/lib/content-url";
-import { DEFAULT_SITE_SETTINGS, type SitePageKey, type SiteSettings } from "@/lib/site-settings";
-import { SiteDesignInspector, SiteDesignPreview } from "./site-design-editor";
+import { DEFAULT_SITE_SETTINGS, type ElementOverride, type SitePageKey, type SiteSettings } from "@/lib/site-settings";
+import { SiteDesignInspector } from "./site-design-editor";
+import { ElementInspector } from "./element-inspector";
+import type { SelectedVisualElement } from "@/components/public/visual-editor-runtime";
 
 type Draft = {
   id?: string;
@@ -68,7 +70,9 @@ export function SiteBuilder({ initial, initialSettings }: { initial: ContentItem
   const [showCreate, setShowCreate] = useState(false);
   const [siteSettings, setSiteSettings] = useState(initialSettings);
   const [designTarget, setDesignTarget] = useState<"global" | SitePageKey | null>(null);
+  const [selectedElement, setSelectedElement] = useState<SelectedVisualElement | null>(null);
   const uploadRef = useRef<HTMLInputElement>(null);
+  const previewRef = useRef<HTMLIFrameElement>(null);
   const uploadReceiver = useRef<(path: string) => void>(() => undefined);
 
   const visible = useMemo(() => items.filter((item) => (filter === "all" || item.type === filter) && `${item.title} ${item.slug}`.toLocaleLowerCase().includes(query.toLocaleLowerCase())), [items, filter, query]);
@@ -78,6 +82,15 @@ export function SiteBuilder({ initial, initialSettings }: { initial: ContentItem
     const timer = window.setTimeout(() => localStorage.setItem("b28-builder-draft", JSON.stringify(draft)), 500);
     return () => window.clearTimeout(timer);
   }, [draft]);
+
+  useEffect(() => {
+    const receive = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin || event.data?.source !== "b28-visual-editor") return;
+      if (event.data.type === "selected") { setSelectedElement(event.data.element as SelectedVisualElement); setStatus(`Editing ${event.data.element.tag} element`); }
+    };
+    window.addEventListener("message", receive);
+    return () => window.removeEventListener("message", receive);
+  }, []);
 
   function select(item: ContentItem) {
     setDesignTarget(null);
@@ -193,7 +206,7 @@ export function SiteBuilder({ initial, initialSettings }: { initial: ContentItem
   }
 
   function editDesign(target: "global" | SitePageKey, path = "/") {
-    setDraft(null); setDesignTarget(target); setPreviewPath(path); setPreviewMode("design"); setStatus(target === "global" ? "Editing global design" : `Editing ${target} page`);
+    setDraft(null); setSelectedElement(null); setDesignTarget(target); setPreviewPath(path); setPreviewMode("design"); setStatus(target === "global" ? "Editing global design" : `Editing ${target} page`);
   }
 
   async function saveDesign() {
@@ -209,6 +222,9 @@ export function SiteBuilder({ initial, initialSettings }: { initial: ContentItem
   }
 
   function requestUpload(receiver: (path: string) => void) { uploadReceiver.current = receiver; uploadRef.current?.click(); }
+  function applyElement(override: ElementOverride) { previewRef.current?.contentWindow?.postMessage({ source: "b28-builder", type: "apply", override }, window.location.origin); }
+  function clearElement() { setSelectedElement(null); previewRef.current?.contentWindow?.postMessage({ source: "b28-builder", type: "select-clear" }, window.location.origin); }
+  function updateElementSettings(next: SiteSettings) { setSiteSettings(next); setStatus("Unsaved element changes"); previewRef.current?.contentWindow?.postMessage({ source: "b28-builder", type: "custom", path: previewPath, items: next.customElements }, window.location.origin); }
 
   return <div className="builder-shell">
     <header className="builder-toolbar">
@@ -230,12 +246,12 @@ export function SiteBuilder({ initial, initialSettings }: { initial: ContentItem
 
     <main className="builder-canvas">
       <div className={`builder-device ${viewport}`}>
-        {previewMode === "site" ? <iframe key={`${previewPath}-${previewKey}`} src={previewPath} title={`Preview of ${previewPath}`}/> : designTarget ? <SiteDesignPreview settings={siteSettings} pageKey={designTarget === "global" ? "home" : designTarget}/> : draft ? <DraftPreview draft={draft}/> : <div className="builder-empty"><FileText size={32}/><h2>Select something to edit</h2><p>Choose a page or content item from the left, or create a new one.</p></div>}
+        {previewMode === "site" ? <iframe ref={previewRef} key={`${previewPath}-${previewKey}`} src={previewPath} title={`Preview of ${previewPath}`}/> : designTarget ? <iframe ref={previewRef} key={`editor-${previewPath}-${previewKey}`} src={`${previewPath}${previewPath.includes("?") ? "&" : "?"}visual-editor=1`} title={`Visual editor for ${previewPath}`}/> : draft ? <DraftPreview draft={draft}/> : <div className="builder-empty"><FileText size={32}/><h2>Select something to edit</h2><p>Choose a page or content item from the left, or create a new one.</p></div>}
       </div>
     </main>
 
     <aside className="builder-inspector">
-      {designTarget ? <SiteDesignInspector settings={siteSettings} target={designTarget} onChange={(next) => { setSiteSettings(next); setStatus("Unsaved design changes"); }} onUpload={requestUpload} onReset={() => { setSiteSettings(DEFAULT_SITE_SETTINGS); setStatus("Design reset locally — publish to apply"); }}/> : !draft ? <div className="builder-inspector-empty"><strong>Nothing selected</strong><p>Select a page, global design, or managed content to edit it.</p></div> : <>
+      {designTarget ? <><ElementInspector selected={selectedElement} path={previewPath} settings={siteSettings} onChange={updateElementSettings} onApply={applyElement} onUpload={requestUpload} onClose={clearElement}/><details className="builder-page-settings"><summary>Page and site settings</summary><SiteDesignInspector settings={siteSettings} target={designTarget} onChange={(next) => { setSiteSettings(next); setStatus("Unsaved design changes"); }} onUpload={requestUpload} onReset={() => { setSiteSettings(DEFAULT_SITE_SETTINGS); setStatus("Design reset locally — publish to apply"); }}/></details></> : !draft ? <div className="builder-inspector-empty"><strong>Nothing selected</strong><p>Select a page, global design, or managed content to edit it.</p></div> : <>
         <div className="builder-inspector-head"><div><small>{draft.id ? "Editing" : "Creating"}</small><strong>{draft.title || `New ${typeLabels[draft.type]}`}</strong></div><button aria-label="Close editor" onClick={() => { setDraft(null); setPreviewMode("site"); }}><X size={17}/></button></div>
         <div className="builder-inspector-actions"><button onClick={duplicate}><Copy size={14}/> Duplicate</button>{draft.status === "published" && draft.slug && <a href={contentPath(draft.type, draft.slug)} target="_blank" rel="noreferrer"><ExternalLink size={14}/> Open</a>}<button className="danger" onClick={() => void remove()} disabled={!draft.id || saving}><Trash2 size={14}/> Delete</button></div>
         <div className="builder-fields">

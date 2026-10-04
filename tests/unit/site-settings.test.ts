@@ -17,3 +17,14 @@ test("clamps layout controls and strips markup from advanced CSS", () => {
   assert.equal(settings.layout.sectionSpacing, 32);
   assert.equal(settings.customCss.includes("<"), false);
 });
+
+test("preserves individual element edits and custom canvas elements", () => {
+  const settings = normalizeSiteSettings({
+    elementOverrides: [{ id: "hero-title", path: "/", selector: ".site-shell h1", tag: "h1", text: "Changed", styles: { color: "#ffffff", "font-size": "72px" } }],
+    customElements: [{ id: "new-copy", path: "/about", type: "text", content: "Added in the canvas", src: "", href: "", order: 0, styles: { padding: "20px" } }],
+  } as never);
+  assert.equal(settings.elementOverrides[0].text, "Changed");
+  assert.equal(settings.elementOverrides[0].styles["font-size"], "72px");
+  assert.equal(settings.customElements[0].content, "Added in the canvas");
+  assert.equal(settings.customElements[0].path, "/about");
+});

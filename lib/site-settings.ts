@@ -1,5 +1,9 @@
 export type SitePageKey = "home" | "work" | "about" | "services" | "journal" | "contact";
 
+export type ElementStyles = Record<string, string>;
+export type ElementOverride = { id: string; path: string; selector: string; tag: string; text?: string; src?: string; href?: string; alt?: string; hidden?: boolean; styles: ElementStyles };
+export type CustomElement = { id: string; path: string; type: "text" | "heading" | "image" | "button" | "divider" | "spacer"; content: string; src: string; href: string; order: number; styles: ElementStyles };
+
 export type PageDesign = {
   kicker: string;
   title: string;
@@ -48,6 +52,8 @@ export type SiteSettings = {
     sectionSpacing: number;
   };
   pages: Record<SitePageKey, PageDesign>;
+  elementOverrides: ElementOverride[];
+  customElements: CustomElement[];
   customCss: string;
 };
 
@@ -93,6 +99,8 @@ export const DEFAULT_SITE_SETTINGS: SiteSettings = {
     journal: page({ kicker: "B28 / Journal", title: "From the work", intro: "Production diaries, field notes, company news and conversations with the people behind the frame.", heroImage: "/media/shattered.jpg", heroAlt: "A cinematic B28 Entertainment frame" }),
     contact: page({ kicker: "B28 / Contact", title: "Let’s create something.", intro: "Tell us what you are making, where you are in the process and what you need next.", heroImage: "/media/after-rain.png", heroAlt: "A cinematic rainy-night journey through Nairobi" }),
   },
+  elementOverrides: [],
+  customElements: [],
   customCss: "",
 };
 
@@ -107,6 +115,8 @@ function number(value: unknown, fallback: number, minimum: number, maximum: numb
 
 export function normalizeSiteSettings(input?: Partial<SiteSettings> | null): SiteSettings {
   const source = input || {};
+  const elementOverrides = Array.isArray(source.elementOverrides) ? source.elementOverrides.slice(0, 2_000).map((entry, index) => ({ id: text(entry?.id, `element-${index}`, 120), path: text(entry?.path, "/", 300), selector: text(entry?.selector, "", 1_000), tag: text(entry?.tag, "div", 30), text: entry?.text === undefined ? undefined : text(entry.text, "", 20_000), src: entry?.src === undefined ? undefined : text(entry.src, "", 2_000), href: entry?.href === undefined ? undefined : text(entry.href, "", 2_000), alt: entry?.alt === undefined ? undefined : text(entry.alt, "", 1_000), hidden: Boolean(entry?.hidden), styles: Object.fromEntries(Object.entries(entry?.styles || {}).slice(0, 100).map(([key, value]) => [text(key, "", 80), text(value, "", 500)])) })) : [];
+  const customElements = Array.isArray(source.customElements) ? source.customElements.slice(0, 1_000).map((entry, index) => ({ id: text(entry?.id, `custom-${index}`, 120), path: text(entry?.path, "/", 300), type: (["text", "heading", "image", "button", "divider", "spacer"] as const).includes(entry?.type as never) ? entry.type : "text", content: text(entry?.content, "", 20_000), src: text(entry?.src, "", 2_000), href: text(entry?.href, "", 2_000), order: number(entry?.order, index, 0, 10_000), styles: Object.fromEntries(Object.entries(entry?.styles || {}).slice(0, 100).map(([key, value]) => [text(key, "", 80), text(value, "", 500)])) })) : [];
   const pages = {} as Record<SitePageKey, PageDesign>;
   for (const key of Object.keys(DEFAULT_SITE_SETTINGS.pages) as SitePageKey[]) {
     const fallback = DEFAULT_SITE_SETTINGS.pages[key];
@@ -156,6 +166,8 @@ export function normalizeSiteSettings(input?: Partial<SiteSettings> | null): Sit
       sectionSpacing: number(source.layout?.sectionSpacing, DEFAULT_SITE_SETTINGS.layout.sectionSpacing, 32, 220),
     },
     pages,
+    elementOverrides,
+    customElements,
     customCss: text(source.customCss, "", 50_000).replace(/[<>]/g, ""),
   };
 }
