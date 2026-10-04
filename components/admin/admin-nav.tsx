@@ -1,13 +1,13 @@
 "use client";
 import Link from "next/link";
-import { Activity, Archive, BookOpen, Clapperboard, FileText, FolderOpen, Image, LayoutDashboard, LifeBuoy, MessageSquare, Settings, Users } from "lucide-react";
+import { Activity, Clapperboard, LayoutDashboard, LifeBuoy, MessageSquare, PencilLine } from "lucide-react";
 import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar";
 import { Mark } from "@/components/public/site-chrome";
 
 const groups = [
-  { label: "Content", items: [["Studio", "/admin2714", Clapperboard], ["Pages", "/admin2714#pages", FileText], ["Projects", "/admin2714#projects", FolderOpen], ["Journal", "/admin2714#journal", BookOpen], ["Team", "/admin2714#team", Users]] },
-  { label: "Media & communication", items: [["Media library", "/admin2714#media", Image], ["Contact leads", "/admin2714#messages", MessageSquare]] },
-  { label: "System", items: [["Backups", "/admin2714#backups", Archive], ["Activity log", "/admin2714#activity", Activity], ["Recovery", "/admin2714/recovery", LifeBuoy], ["Settings", "/admin2714#settings", Settings]] },
+  { label: "Content", items: [["Library", "/admin2714#content", Clapperboard], ["Editor", "/admin2714#editor", PencilLine]] },
+  { label: "Communication", items: [["Contact leads", "/admin2714#messages", MessageSquare]] },
+  { label: "System", items: [["Activity log", "/admin2714#activity", Activity], ["Recovery", "/admin2714/recovery", LifeBuoy]] },
 ] as const;
 
 export function AdminNav() {

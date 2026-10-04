@@ -84,3 +84,52 @@ img,video,svg{max-width:100%}
   .project-grid{grid-template-columns:minmax(0,1fr);gap:3rem}
   .project-info>p{display:block}
 }
+
+/* Admin studio usability */
+.admin-shell{min-width:0}
+.admin-main{margin-inline:auto}
+.admin-panel{min-width:0;border-radius:var(--radius-md)}
+.admin-panel-heading{gap:1rem;margin-bottom:1.25rem}
+.admin-panel-heading h2,.admin-panel>.admin-label+h2{margin-bottom:0}
+.admin-label{margin:0 0 .25rem;color:var(--amber);font-size:.65rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase}
+.admin-actions{align-items:center;flex-wrap:wrap}
+.admin-actions select{min-height:40px;border:1px solid var(--line);background:var(--panel);color:var(--paper);padding:.5rem 2rem .5rem .7rem;color-scheme:dark}
+.admin-actions select option,.admin-form select option,.block-row select option{background:var(--panel);color:var(--paper)}
+.admin-button{display:inline-flex;align-items:center;justify-content:center;gap:.45rem;min-height:40px;cursor:pointer;transition:background-color .2s,color .2s,border-color .2s,opacity .2s}
+.admin-button:hover:not(:disabled){background:var(--amber);color:var(--ink);border-color:var(--amber)}
+.admin-button:disabled,.block-row button:disabled{cursor:not-allowed;opacity:.45}
+.admin-table-scroll{max-width:100%;overflow-x:auto;border-top:1px solid var(--line)}
+.admin-table-scroll .content-table{min-width:580px}
+.content-table tbody tr{cursor:pointer;transition:background-color .2s}
+.content-table tbody tr:hover,.content-table tbody tr:focus-visible,.content-table tbody tr.selected{background:rgba(217,144,66,.1);outline:none}
+.content-table td strong{font-weight:650;color:var(--paper)}
+.admin-editor{scroll-margin-top:1rem}
+.admin-form input,.admin-form textarea,.admin-form select{color-scheme:dark}
+.admin-form textarea{resize:vertical}
+.admin-form .checkbox-field{display:flex;align-items:center;justify-content:flex-start;gap:.65rem}
+.admin-form input[type="checkbox"]{width:1rem;height:1rem;margin:0;accent-color:var(--amber)}
+.block-row select{flex:0 0 135px;background:var(--panel);color:var(--paper);color-scheme:dark}
+.block-row input{min-width:10rem;flex:1}
+.block-row button{display:grid;flex:0 0 32px;width:32px;height:32px;place-items:center;border:1px solid var(--line);background:transparent;cursor:pointer}
+.block-row button:hover:not(:disabled){border-color:var(--amber);color:var(--amber)}
+.admin-flash{display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap}
+.empty-state.compact{padding:2rem 1rem}
+
+@media(max-width:1100px){
+  .admin-studio-grid{grid-template-columns:1fr}
+}
+
+@media(max-width:640px){
+  .admin-main{padding-block:1rem}
+  .admin-topbar{align-items:flex-start}
+  .admin-main>.admin-topbar{gap:1rem}
+  .admin-main>.admin-topbar>.admin-button{width:100%}
+  .admin-panel{padding:1rem}
+  .admin-panel-heading{align-items:stretch;flex-direction:column}
+  .admin-panel-heading .admin-actions{display:grid;grid-template-columns:minmax(0,1fr) auto;width:100%}
+  .admin-actions select{width:100%}
+  .admin-table-scroll .content-table{display:table}
+  .admin-form .wide{grid-column:1/-1}
+  .block-row{display:grid;grid-template-columns:repeat(3,32px) minmax(0,1fr)}
+  .block-row select,.block-row input{grid-column:1/-1;width:100%}
+}
