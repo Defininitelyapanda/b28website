@@ -92,8 +92,9 @@ export function updateStore<T>(change: (store: LocalStore) => T | Promise<T>): P
     if (database) {
       try {
         const store = await readD1Store(database);
+        const previous = JSON.stringify(store);
         const value = await change(store);
-        await writeD1Store(database, store);
+        if (JSON.stringify(store) !== previous) await writeD1Store(database, store);
         resolveResult(value);
       } catch (error) {
         rejectResult(error);

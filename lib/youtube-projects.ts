@@ -4,6 +4,7 @@ import { isProjectUpload, parseYouTubeFeed, type YouTubeUpload } from "./youtube
 export const B28_YOUTUBE_CHANNEL_ID = "UC0UusFfIWqAa27wyuwjoVXw";
 const FEED_URL = `https://www.youtube.com/feeds/videos.xml?channel_id=${B28_YOUTUBE_CHANNEL_ID}`;
 const REFRESH_SECONDS = 300;
+const FEED_TIMEOUT_MS = 4_000;
 
 function projectTitle(rawTitle: string) {
   const firstSection = rawTitle.split(/[|｜]/)[0].trim();
@@ -34,6 +35,7 @@ export async function syncYouTubeProjects() {
     const response = await fetch(FEED_URL, {
       next: { revalidate: REFRESH_SECONDS },
       headers: { Accept: "application/atom+xml, application/xml;q=0.9" },
+      signal: AbortSignal.timeout(FEED_TIMEOUT_MS),
     });
     if (!response.ok) return { added: 0, available: false };
     const uploads = parseYouTubeFeed(await response.text()).filter(isProjectUpload);

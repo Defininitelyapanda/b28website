@@ -56,3 +56,15 @@ test("Cloudflare deployment binds persistent D1 and R2 storage", async () => {
   assert.match(store, /cloudflareCmsDatabase/);
   assert.match(storage, /cloudflareMediaBucket/);
 });
+
+test("dynamic pages cannot be held open by no-op CMS writes or the YouTube feed", async () => {
+  const [cms, store, youtube] = await Promise.all([
+    readFile(new URL("../../lib/cms.ts", import.meta.url), "utf8"),
+    readFile(new URL("../../lib/local-store.ts", import.meta.url), "utf8"),
+    readFile(new URL("../../lib/youtube-projects.ts", import.meta.url), "utf8"),
+  ]);
+  assert.match(cms, /const current = await readStore\(\)/);
+  assert.match(cms, /current\.content\.some/);
+  assert.match(store, /JSON\.stringify\(store\) !== previous/);
+  assert.match(youtube, /AbortSignal\.timeout\(FEED_TIMEOUT_MS\)/);
+});

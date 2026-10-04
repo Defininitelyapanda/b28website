@@ -74,6 +74,8 @@ export async function dashboardStats() {
 }
 
 export async function ensureSeedData(authorId = "system") {
+  const current = await readStore();
+  if (current.content.some((entry) => entry.data.demo !== true)) return;
   await updateStore((store) => {
     const hasRealContent = store.content.some((entry) => entry.data.demo !== true);
     if (hasRealContent) return;
