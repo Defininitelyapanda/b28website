@@ -1,27 +1,10 @@
-import Image from "next/image";
-import Link from "next/link";
-import { ArrowUpRight } from "lucide-react";
-import { ensureSeedData, listContent } from "@/lib/cms";
-import { PageFrame } from "@/components/public/page-frame";
-import { ContentBody, contentBlocks } from "@/components/public/content-blocks";
-
+import { ensureSeedData, getSiteSettings, listContent } from "@/lib/cms";
+import { ServicesView } from "@/components/public/services-view";
 export const metadata = { title: "Services", description: "Development, production and post-production services from B28 Entertainment." };
 export const dynamic = "force-dynamic";
 
 export default async function Services() {
   await ensureSeedData();
-  const services = await listContent("service");
-  return <PageFrame pageKey="services"
-    kicker="B28 / Capabilities"
-    title="Services"
-    intro="Original film production and focused short-form storytelling from B28 Entertainment."
-    heroImage="/media/fragile-hearts.jpg"
-    heroImageAlt="A cinematic scene from a B28 Entertainment production"
-  >
-    <section className="wrap section-pad">
-      <div className="service-list">{services.map((service, index) => <article id={service.slug} className="service-row service-managed" key={service.id}><span>{String(index + 1).padStart(2, "0")}</span><div><p className="meta">{String(service.data.label || "Service")}</p><h3>{service.title}</h3></div><div><p>{service.excerpt}</p>{(service.body !== service.excerpt || contentBlocks(service.data).length > 0) && <ContentBody body={service.body === service.excerpt ? "" : service.body} blocks={contentBlocks(service.data)}/>}</div><ArrowUpRight/></article>)}</div>
-      <div className="journal-image" style={{ marginTop: "7rem", aspectRatio: "16/7" }}><Image src="/media/fragile-hearts.jpg" alt="Fragile Hearts official B28 Entertainment film artwork" fill sizes="100vw"/></div>
-      <Link href="/contact" className="button light">Discuss a production</Link>
-    </section>
-  </PageFrame>;
+  const [services, settings] = await Promise.all([listContent("service"), getSiteSettings()]);
+  return <ServicesView services={services} settings={settings}/>;
 }

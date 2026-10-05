@@ -6,7 +6,9 @@ Open the unlinked builder by manually entering `/admin2714`. Use `/admin2714?saf
 
 Choose Global design or a public page in the left sidebar, then click an element in the canvas. Text becomes editable in place. The contextual toolbar provides controls appropriate to the selection; the amber handles reposition and resize it. The right inspector provides detailed content, typography, color, background, spacing, border, image, link, and positioning controls.
 
-Device buttons switch the canvas between real desktop, tablet, and mobile widths. Live site shows the published page; Design shows the editable canvas.
+Device buttons switch the canvas between real desktop, tablet, and mobile widths. Live site shows the published page; Edit shows the editable canvas.
+
+The redesigned B28 Studio workspace opens on the real homepage. Pages and Properties each have an on/off control in the workspace bar; Focus canvas hides both panels. Panels float above the canvas and never shrink its viewport. Desktop uses the browser's full width and height; tablet uses 820 × 1180 and mobile uses 390 × 844, all at 1:1 scale. Scroll the canvas to reach its full height. Managed page, project, and journal drafts share their rendering components and styles with the public site.
 
 ## Drafts, autosave, and publishing
 

@@ -6,6 +6,8 @@ The public website and `/admin2714` run in the same Next.js application. Cloudfl
 
 The canvas renders the actual public routes in an iframe. `visual-editor-runtime.tsx` sends selection, text, transformation, and keyboard events to `site-builder.tsx`. Design changes are applied through same-origin messages, including undo and redo, without navigating the iframe. Element overrides and inserted elements are stored in site settings. The inspectors expose page, global, component, and managed-content controls.
 
+The current workspace styles live in `components/builder/workspace.css`; the old builder CSS and mock preview components have been removed. Pages and Properties are floating panels with independent visibility controls. They do not alter the iframe's 1:1 viewport dimensions. `/admin2714/preview` receives unsaved content through a same-origin parent-frame bridge and renders the shared public page/project/journal/service/team components. Public settings hooks accept draft settings only inside the visual-editor iframe; normal visitor pages keep the published server settings.
+
 Authentication is behind `lib/admin-access.ts` and the route proxy. The development default opens the builder directly. A configured server token is required when the switch is enabled; a production login/session provider can replace this implementation behind the same interface.
 
 ## Implemented persistence and recovery stage

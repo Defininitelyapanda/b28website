@@ -1,8 +1,13 @@
+"use client";
 import type { CSSProperties, ReactNode } from "react";
 import type { PageDesign, SiteSettings } from "@/lib/site-settings";
 import { VisualEditorRuntime } from "./visual-editor-runtime";
+import { useCanvasSettings } from "./use-canvas-settings";
 
-export function SiteTheme({ settings, page, children }: { settings: SiteSettings; page?: PageDesign; children: ReactNode }) {
+export function SiteTheme({ settings: initial, page: initialPage, children }: { settings: SiteSettings; page?: PageDesign; children: ReactNode }) {
+  const settings = useCanvasSettings(initial);
+  const pageKey = initialPage ? (Object.keys(initial.pages) as Array<keyof SiteSettings["pages"]>).find((key) => initial.pages[key] === initialPage) : undefined;
+  const page = pageKey ? settings.pages[pageKey] : initialPage;
   const variables = {
     "--ink": settings.colors.background,
     "--coal": settings.colors.surface,
@@ -29,6 +34,6 @@ export function SiteTheme({ settings, page, children }: { settings: SiteSettings
   return <div className="site-shell" style={variables}>
     {settings.customCss ? <style dangerouslySetInnerHTML={{ __html: settings.customCss }}/>: null}
     {children}
-    <VisualEditorRuntime overrides={settings.elementOverrides} customElements={settings.customElements}/>
+    <VisualEditorRuntime overrides={initial.elementOverrides} customElements={initial.customElements}/>
   </div>;
 }

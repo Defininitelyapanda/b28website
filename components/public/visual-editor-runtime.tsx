@@ -46,7 +46,7 @@ function visualData(element: HTMLElement, path: string): SelectedVisualElement {
 }
 
 function setElementText(element: HTMLElement, value: string) {
-  if (editableTextTags.has(element.tagName.toLocaleLowerCase())) element.textContent = value;
+  if (editableTextTags.has(element.tagName.toLocaleLowerCase()) && element.textContent !== value) element.textContent = value;
 }
 
 function applyOverride(override: ElementOverride) {
@@ -161,6 +161,7 @@ export function VisualEditorRuntime({ overrides, customElements }: { overrides: 
   useEffect(() => {
     const parameters = new URLSearchParams(window.location.search); const safeMode = parameters.get("safe") === "1";
     const snapshots = new Map<string, ElementSnapshot>();
+    let stateFrame = 0;
     const applyTracked = (override: ElementOverride) => { rememberElement(override.selector, snapshots); applyOverride(override); };
     const applyAll = () => { renderCustomElements(pathname, customElements, safeMode); overrides.filter((entry) => entry.path === pathname).forEach(applyTracked); };
     applyAll(); const timer = window.setTimeout(applyAll, 150); const editing = parameters.get("visual-editor") === "1";
@@ -186,11 +187,11 @@ export function VisualEditorRuntime({ overrides, customElements }: { overrides: 
       const command = event.data;
       if (command.type === "apply") { applyTracked(command.override); toolbar.refresh(); }
       if (command.type === "custom") renderCustomElements(command.path, command.items, safeMode);
-      if (command.type === "state") { const commandPath = command.path; restoreElements(snapshots); renderCustomElements(commandPath, command.items, safeMode); command.overrides.filter((entry) => entry.path === commandPath).forEach(applyTracked); toolbar.refresh(); }
+      if (command.type === "state") { const commandPath = command.path; restoreElements(snapshots); renderCustomElements(commandPath, command.items, safeMode); command.overrides.filter((entry) => entry.path === commandPath).forEach(applyTracked); toolbar.refresh(); window.cancelAnimationFrame(stateFrame); stateFrame = window.requestAnimationFrame(() => { command.overrides.filter((entry) => entry.path === commandPath).forEach(applyTracked); toolbar.refresh(); }); }
       if (command.type === "select-clear") { selected?.removeAttribute("data-visual-selected"); selected?.removeAttribute("contenteditable"); selected = null; toolbar.refresh(); }
     };
     document.addEventListener("mousemove", hover, true); document.addEventListener("click", choose, true); document.addEventListener("input", input, true); document.addEventListener("keydown", keyboard, true); window.addEventListener("message", message); tellParent("ready", { path: pathname });
-    return () => { window.clearTimeout(timer); window.clearTimeout(editTimer); toolbar.destroy(); document.documentElement.classList.remove("visual-editing", "visual-safe-mode"); document.removeEventListener("mousemove", hover, true); document.removeEventListener("click", choose, true); document.removeEventListener("input", input, true); document.removeEventListener("keydown", keyboard, true); window.removeEventListener("message", message); };
+    return () => { window.clearTimeout(timer); window.clearTimeout(editTimer); window.cancelAnimationFrame(stateFrame); toolbar.destroy(); document.documentElement.classList.remove("visual-editing", "visual-safe-mode"); document.removeEventListener("mousemove", hover, true); document.removeEventListener("click", choose, true); document.removeEventListener("input", input, true); document.removeEventListener("keydown", keyboard, true); window.removeEventListener("message", message); };
   }, [pathname, overrides, customElements]);
   return null;
 }

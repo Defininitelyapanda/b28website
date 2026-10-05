@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, ChevronDown, ChevronUp, Clock3, Copy, ExternalLink, FileText, Images, Laptop, Monitor, Plus, Redo2, RotateCcw, Save, Search, Send, Smartphone, Trash2, Undo2, Upload, X } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronUp, Clock3, Copy, ExternalLink, FileText, Images, Laptop, Monitor, PanelLeft, PanelRight, Maximize2, Plus, Redo2, RotateCcw, Save, Search, Send, Smartphone, Trash2, Undo2, Upload, X } from "lucide-react";
+import "./workspace.css";
 import type { ContentBlock, ContentItem, ContentStatus, ContentType } from "@/lib/cms-types";
 import { contentPath } from "@/lib/content-url";
 import { DEFAULT_SITE_SETTINGS, normalizeSiteSettings, type CustomElement, type ElementOverride, type SitePageKey, type SiteSettings } from "@/lib/site-settings";
@@ -64,7 +65,9 @@ export function SiteBuilder({ initial, initialSettings, recoveredDesignDraft = f
   const [filter, setFilter] = useState<ContentType | "all">("all");
   const [query, setQuery] = useState("");
   const [viewport, setViewport] = useState<Viewport>("desktop");
-  const [previewMode, setPreviewMode] = useState<PreviewMode>("site");
+  const [previewMode, setPreviewMode] = useState<PreviewMode>("design");
+  const [showPages, setShowPages] = useState(true);
+  const [showInspector, setShowInspector] = useState(false);
   const [previewPath, setPreviewPath] = useState("/");
   const [previewKey, setPreviewKey] = useState(0);
   const [status, setStatus] = useState(safeMode ? "Safe mode — embeds and motion disabled" : recoveredDesignDraft ? "Recovered saved design draft" : "Ready");
@@ -73,7 +76,7 @@ export function SiteBuilder({ initial, initialSettings, recoveredDesignDraft = f
   const [siteSettings, setSiteSettings] = useState(initialSettings);
   const [designHistory, setDesignHistory] = useState<SiteSettings[]>([initialSettings]);
   const [designHistoryIndex, setDesignHistoryIndex] = useState(0);
-  const [designTarget, setDesignTarget] = useState<"global" | SitePageKey | null>(null);
+  const [designTarget, setDesignTarget] = useState<"global" | SitePageKey | null>("home");
   const [selectedElement, setSelectedElement] = useState<SelectedVisualElement | null>(null);
   const [designDirty, setDesignDirty] = useState(false);
   const [showVersions, setShowVersions] = useState(false);
@@ -119,6 +122,21 @@ export function SiteBuilder({ initial, initialSettings, recoveredDesignDraft = f
   const visible = useMemo(() => items.filter((item) => (filter === "all" || item.type === filter) && `${item.title} ${item.slug}`.toLocaleLowerCase().includes(query.toLocaleLowerCase())), [items, filter, query]);
   const visibleMedia = useMemo(() => mediaItems.filter((item) => `${item.filename} ${item.title} ${item.alt_text}`.toLocaleLowerCase().includes(mediaQuery.toLocaleLowerCase())), [mediaItems, mediaQuery]);
 
+  function sendContentPreview() {
+    if (!draft) return;
+    previewRef.current?.contentWindow?.postMessage({ source: "b28-builder", type: "content-preview", item: { ...draft, data: { ...draft.data, blocks: draft.blocks } }, settings: settingsRef.current }, window.location.origin);
+  }
+
+  useEffect(() => {
+    const ready = (event: MessageEvent) => {
+      if (event.source === previewRef.current?.contentWindow && event.origin === window.location.origin && event.data?.source === "b28-content-preview" && event.data.type === "ready") sendContentPreview();
+    };
+    window.addEventListener("message", ready);
+    sendContentPreview();
+    return () => window.removeEventListener("message", ready);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft, siteSettings, previewMode]);
+
   useEffect(() => {
     if (!draft) return;
     const timer = window.setTimeout(() => localStorage.setItem("b28-builder-draft", JSON.stringify(draft)), 500);
@@ -141,7 +159,7 @@ export function SiteBuilder({ initial, initialSettings, recoveredDesignDraft = f
 
   useEffect(() => {
     const receive = (event: MessageEvent) => {
-      if (event.origin !== window.location.origin || event.data?.source !== "b28-visual-editor") return;
+      if (event.source !== previewRef.current?.contentWindow || event.origin !== window.location.origin || event.data?.source !== "b28-visual-editor") return;
       if (event.data.type === "selected") { setSelectedElement(event.data.element as SelectedVisualElement); setStatus(`Editing ${event.data.element.tag} element`); }
       if (event.data.type === "ready") sendDesignState();
       if (event.data.type === "shortcut") {
@@ -178,13 +196,13 @@ export function SiteBuilder({ initial, initialSettings, recoveredDesignDraft = f
   function select(item: ContentItem) {
     setDesignTarget(null);
     const next = fromItem(item);
-    setDraft(next); setHistory([next]); setHistoryIndex(0); setPreviewPath(contentPath(item.type, item.slug)); setPreviewMode("design"); setStatus(`${typeLabels[item.type]} selected`);
+    setDraft(next); setHistory([next]); setHistoryIndex(0); setPreviewPath(contentPath(item.type, item.slug)); setPreviewMode("design"); setShowInspector(true); setStatus(`${typeLabels[item.type]} selected`);
   }
 
   function create(type: ContentType) {
     setDesignTarget(null);
     const next = freshDraft(type);
-    setDraft(next); setHistory([next]); setHistoryIndex(0); setPreviewMode("design"); setShowCreate(false); setStatus(`New ${typeLabels[type].toLocaleLowerCase()}`);
+    setDraft(next); setHistory([next]); setHistoryIndex(0); setPreviewMode("design"); setShowInspector(true); setShowCreate(false); setStatus(`New ${typeLabels[type].toLocaleLowerCase()}`);
   }
 
   function commit(next: Draft) {
@@ -362,7 +380,7 @@ export function SiteBuilder({ initial, initialSettings, recoveredDesignDraft = f
   function chooseMedia(item: MediaItem) { uploadReceiver.current(item.storage_key); setShowMedia(false); setStatus(`${item.filename} selected`); }
   function applyElement(override: ElementOverride) { previewRef.current?.contentWindow?.postMessage({ source: "b28-builder", type: "apply", override }, window.location.origin); }
   function clearElement() { setSelectedElement(null); previewRef.current?.contentWindow?.postMessage({ source: "b28-builder", type: "select-clear" }, window.location.origin); }
-  function sendDesignState(settings: SiteSettings = settingsRef.current) { previewRef.current?.contentWindow?.postMessage({ source: "b28-builder", type: "state", path: previewPath, overrides: settings.elementOverrides, items: settings.customElements }, window.location.origin); }
+  function sendDesignState(settings: SiteSettings = settingsRef.current) { previewRef.current?.contentWindow?.postMessage({ source: "b28-builder", type: "state", path: previewPath, settings, overrides: settings.elementOverrides, items: settings.customElements }, window.location.origin); }
   function updateElementSettings(next: SiteSettings) { commitDesign(next, "Unsaved element changes"); previewRef.current?.contentWindow?.postMessage({ source: "b28-builder", type: "custom", path: previewPath, items: next.customElements }, window.location.origin); }
   function applyVisualPatch(element: SelectedVisualElement, patch: Partial<ElementOverride>) {
     const current = settingsRef.current;
@@ -386,16 +404,21 @@ export function SiteBuilder({ initial, initialSettings, recoveredDesignDraft = f
 
   return <div className="builder-shell">
     <header className="builder-toolbar">
-      <div className="builder-brand"><Link href="/" aria-label="Return to public site"><ArrowLeft size={17}/></Link><span className="builder-logo">B28</span><div><strong>Website Builder</strong><small>{status}</small></div></div>
-      <div className="builder-toolbar-center"><button className={previewMode === "design" ? "active" : ""} onClick={() => setPreviewMode("design")} disabled={!draft && !designTarget}>Design</button><button className={previewMode === "site" ? "active" : ""} onClick={() => setPreviewMode("site")}>Live site</button><span className="builder-divider"/><button aria-label="Desktop preview" className={viewport === "desktop" ? "active" : ""} onClick={() => setViewport("desktop")}><Monitor size={16}/></button><button aria-label="Tablet preview" className={viewport === "tablet" ? "active" : ""} onClick={() => setViewport("tablet")}><Laptop size={16}/></button><button aria-label="Mobile preview" className={viewport === "mobile" ? "active" : ""} onClick={() => setViewport("mobile")}><Smartphone size={16}/></button></div>
-      <div className="builder-toolbar-actions"><button aria-label="Undo" onClick={undo} disabled={designTarget ? designHistoryIndex <= 0 : !draft || historyIndex <= 0}><Undo2 size={16}/></button><button aria-label="Redo" onClick={redo} disabled={designTarget ? designHistoryIndex >= designHistory.length - 1 : !draft || historyIndex >= history.length - 1}><Redo2 size={16}/></button>{designTarget ? <><button onClick={() => void openDesignVersions()} disabled={saving} title="Open version history"><Clock3 size={15}/> Versions</button><button onClick={() => void restoreLastSavedDesign()} disabled={saving} title="Discard the design draft and return to the published version"><RotateCcw size={15}/> Back to last saved</button><button onClick={() => void saveDesignDraft()} disabled={saving || !designDirty}><Save size={15}/> Save draft</button><button className="primary" onClick={() => void saveDesign()} disabled={saving}><Send size={15}/> Publish changes</button></> : <><button onClick={() => void save("draft")} disabled={!draft || saving}><Save size={15}/> Draft</button><button className="primary" onClick={() => void save("published")} disabled={!draft || saving}><Send size={15}/> Publish</button></>}</div>
+      <div className="builder-brand"><Link href="/" aria-label="Return to public site"><ArrowLeft size={17}/></Link><span className="builder-logo">B28</span><div><strong>B28 Studio</strong><small role="status">{status}</small></div></div>
+      <div className="builder-location"><span>Website editor</span><strong>{draft?.title || publicPages.find(([, , path]) => path === previewPath)?.[1] || previewPath}</strong></div>
+      <div className="builder-toolbar-actions"><button aria-label="Undo" title="Undo (Ctrl+Z)" onClick={undo} disabled={designTarget ? designHistoryIndex <= 0 : !draft || historyIndex <= 0}><Undo2 size={16}/></button><button aria-label="Redo" title="Redo (Ctrl+Shift+Z)" onClick={redo} disabled={designTarget ? designHistoryIndex >= designHistory.length - 1 : !draft || historyIndex >= history.length - 1}><Redo2 size={16}/></button>{designTarget ? <><button onClick={() => void openDesignVersions()} disabled={saving} title="Version history"><Clock3 size={15}/><span>History</span></button><button onClick={() => void restoreLastSavedDesign()} disabled={saving} title="Back to last saved"><RotateCcw size={15}/><span>Restore</span></button><button onClick={() => void saveDesignDraft()} disabled={saving || !designDirty}><Save size={15}/><span>Save draft</span></button><button className="primary" onClick={() => void saveDesign()} disabled={saving}><Send size={15}/><span>Publish changes</span></button></> : <><button onClick={() => void save("draft")} disabled={!draft || saving}><Save size={15}/><span>Save draft</span></button><button className="primary" onClick={() => void save("published")} disabled={!draft || saving}><Send size={15}/><span>Publish</span></button></>}</div>
     </header>
+    <div className="builder-workspace-bar">
+      <div className="builder-panel-controls"><button aria-controls="builder-pages" aria-expanded={showPages} className={showPages ? "active" : ""} onClick={() => setShowPages((value) => !value)} title="Toggle pages sidebar"><PanelLeft size={17}/><span>Pages</span></button><button aria-controls="builder-properties" aria-expanded={showInspector} className={showInspector ? "active" : ""} onClick={() => setShowInspector((value) => !value)} title="Toggle properties sidebar"><PanelRight size={17}/><span>Properties</span></button><button onClick={() => { const hide = showPages || showInspector; setShowPages(!hide); setShowInspector(!hide); }} title="Show or hide both sidebars"><Maximize2 size={16}/><span>Focus canvas</span></button></div>
+      <div className="builder-toolbar-center"><button className={previewMode === "design" ? "active" : ""} onClick={() => setPreviewMode("design")}>Edit</button><button className={previewMode === "site" ? "active" : ""} onClick={() => setPreviewMode("site")}>Live site</button><span className="builder-divider"/><button aria-label="Desktop preview" className={viewport === "desktop" ? "active" : ""} onClick={() => setViewport("desktop")}><Monitor size={16}/></button><button aria-label="Tablet preview" className={viewport === "tablet" ? "active" : ""} onClick={() => setViewport("tablet")}><Laptop size={16}/></button><button aria-label="Mobile preview" className={viewport === "mobile" ? "active" : ""} onClick={() => setViewport("mobile")}><Smartphone size={16}/></button></div>
+      <span className="builder-canvas-note">{viewport === "desktop" ? "Browser width · 1:1" : viewport === "tablet" ? "820 × 1180 · 1:1" : "390 × 844 · 1:1"}</span>
+    </div>
     {localRecovery && <section className="builder-version-panel" role="dialog" aria-modal="true" aria-label="Recover browser draft"><div className="builder-version-card"><header><div><small>Draft recovery</small><h2>Unsaved browser changes found</h2><p>Recover these changes into the editor, or keep the version loaded from the server. Publishing remains a separate step.</p></div></header><div className="builder-media-tools"><button onClick={() => { commitDesign(localRecovery, "Browser draft recovered — review before publishing"); editDesign("home"); sendDesignState(localRecovery); setLocalRecovery(null); }}>Recover browser draft</button><button onClick={() => { try { localStorage.removeItem("b28-site-design-draft"); } catch {} setLocalRecovery(null); }}>Keep server version</button></div></div></section>}
     {showVersions && <section className="builder-version-panel" role="dialog" aria-modal="true" aria-label="Site design version history"><div className="builder-version-card"><header><div><small>Site recovery</small><h2>Version history</h2><p>Restoring creates a draft. The live website stays unchanged until you publish.</p></div><button aria-label="Close version history" onClick={() => setShowVersions(false)}><X size={18}/></button></header><div>{designVersions.length ? designVersions.map((version) => <article key={version.id}><span><strong>Version {version.version}</strong><small>{version.createdAt ? new Date(version.createdAt).toLocaleString() : "Unknown date"} · {version.author}</small><small>{version.summary}</small></span><button onClick={() => void restoreDesignVersion(version.version)} disabled={saving}>Restore to draft</button></article>) : <p>No design snapshots yet. A snapshot is created automatically before every publish.</p>}</div></div></section>}
     {showMedia && <section className="builder-version-panel" role="dialog" aria-modal="true" aria-label="Media library"><div className="builder-version-card builder-media-library"><header><div><small>Assets</small><h2>Media library</h2><p>Choose an existing asset or upload a new image or video.</p></div><button aria-label="Close media library" onClick={() => setShowMedia(false)}><X size={18}/></button></header><div className="builder-media-tools"><label className="builder-search"><Search size={14}/><input value={mediaQuery} onChange={(event) => setMediaQuery(event.target.value)} placeholder="Search media"/></label><button onClick={() => uploadRef.current?.click()}><Upload size={15}/> Upload new</button></div><div className="builder-media-grid">{visibleMedia.map((item) => <button key={item.id} onClick={() => chooseMedia(item)} title={`Use ${item.filename}`}>{item.mime_type.startsWith("image/") ? <span className="builder-media-thumb" role="img" aria-label={item.alt_text || item.title || item.filename} style={{ backgroundImage: `url("${item.storage_key.replace(/["\\]/g, "")}")` }}/> : <span className="builder-media-file"><FileText size={28}/>{item.mime_type}</span>}<span><strong>{item.title || item.filename}</strong><small>{Math.max(1, Math.round(item.size / 1024))} KB</small></span></button>)}{!visibleMedia.length && <p>No matching media. Upload an asset to begin.</p>}</div></div></section>}
     <input ref={uploadRef} className="sr-only" type="file" accept="image/*,video/mp4,video/webm" onChange={(event) => { const file = event.target.files?.[0]; if (file) void upload(file); }}/>
 
-    <aside className="builder-left">
+    <aside className="builder-left" id="builder-pages" hidden={!showPages} aria-label="Pages and assets">
       <div className="builder-side-heading"><div><small>Website</small><strong>Pages & content</strong></div><button aria-label="Add content" onClick={() => setShowCreate(!showCreate)}><Plus size={17}/></button></div>
       {showCreate && <div className="builder-create-menu">{(Object.keys(typeLabels) as ContentType[]).map((type) => <button key={type} onClick={() => create(type)}><strong>{typeLabels[type]}</strong><span>{typeDescriptions[type]}</span></button>)}</div>}
       <nav className="builder-public-pages" aria-label="Public pages"><button className={designTarget === "global" ? "active" : ""} onClick={() => editDesign("global")}><FileText size={15}/><span>Global design</span><small>all pages</small></button>{publicPages.map(([key, label, path]) => <button key={path} className={designTarget === key ? "active" : ""} onClick={() => editDesign(key, path)}><FileText size={15}/><span>{label}</span><small>{path}</small></button>)}<button onClick={openMediaLibrary}><Images size={15}/><span>Media library</span><small>images & video</small></button></nav>
@@ -405,14 +428,15 @@ export function SiteBuilder({ initial, initialSettings, recoveredDesignDraft = f
       <div className="builder-items">{visible.map((item) => <button key={item.id} className={draft?.id === item.id ? "active" : ""} onClick={() => select(item)}><span className={`builder-type type-${item.type}`}>{typeLabels[item.type].slice(0, 1)}</span><span><strong>{item.title}</strong><small>/{item.slug} · {item.status}</small></span></button>)}{!visible.length && <p>No matching content.</p>}</div>
     </aside>
 
-    <main className="builder-canvas">
+    <main className="builder-canvas" aria-label="Public website canvas">
       <div className={`builder-device ${viewport}`}>
-        {previewMode === "site" ? <iframe ref={previewRef} key={`${previewPath}-${previewKey}`} src={`${previewPath}${safeMode ? `${previewPath.includes("?") ? "&" : "?"}safe=1` : ""}`} title={`Preview of ${previewPath}`}/> : designTarget ? <iframe ref={previewRef} key={`editor-${previewPath}-${previewKey}`} src={`${previewPath}${previewPath.includes("?") ? "&" : "?"}visual-editor=1${safeMode ? "&safe=1" : ""}`} title={`Visual editor for ${previewPath}`}/> : draft ? <DraftPreview draft={draft}/> : <div className="builder-empty"><FileText size={32}/><h2>Select something to edit</h2><p>Choose a page or content item from the left, or create a new one.</p></div>}
+        {previewMode === "site" ? <iframe ref={previewRef} key={`live-${previewPath}-${previewKey}`} src={`${previewPath}${safeMode ? `${previewPath.includes("?") ? "&" : "?"}safe=1` : ""}`} title={`Live public page: ${previewPath}`}/> : designTarget ? <iframe ref={previewRef} key={`editor-${previewPath}-${previewKey}`} src={`${previewPath}${previewPath.includes("?") ? "&" : "?"}visual-editor=1${safeMode ? "&safe=1" : ""}`} title={`Visual editor for ${previewPath}`}/> : draft ? <iframe ref={previewRef} src="/admin2714/preview" title="Draft rendered with the public website layout"/> : null}
       </div>
     </main>
 
-    <aside className="builder-inspector">
-      {designTarget ? <><ElementInspector selected={selectedElement} path={previewPath} settings={siteSettings} onChange={updateElementSettings} onApply={applyElement} onUpload={requestUpload} onClose={clearElement}/><details className="builder-page-settings"><summary>Page and site settings</summary><SiteDesignInspector settings={siteSettings} target={designTarget} onChange={(next) => commitDesign(next)} onUpload={requestUpload} onReset={() => commitDesign(DEFAULT_SITE_SETTINGS, "Design reset locally — publish to apply")}/></details></> : !draft ? <div className="builder-inspector-empty"><strong>Nothing selected</strong><p>Select a page, global design, or managed content to edit it.</p></div> : <>
+    <aside className="builder-inspector" id="builder-properties" hidden={!showInspector} aria-label="Selection properties">
+      <div className="builder-panel-heading"><strong>Properties</strong><button aria-label="Hide properties sidebar" onClick={() => setShowInspector(false)}><X size={16}/></button></div>
+      {designTarget ? <><ElementInspector selected={selectedElement} path={previewPath} settings={siteSettings} onChange={updateElementSettings} onApply={applyElement} onUpload={requestUpload} onClose={clearElement}/><details className="builder-page-settings"><summary>Page and site settings</summary><SiteDesignInspector settings={siteSettings} target={designTarget} onChange={(next) => { commitDesign(next); sendDesignState(next); }} onUpload={requestUpload} onReset={() => { commitDesign(DEFAULT_SITE_SETTINGS, "Design reset locally — publish to apply"); sendDesignState(DEFAULT_SITE_SETTINGS); }}/></details></> : !draft ? <div className="builder-inspector-empty"><strong>Nothing selected</strong><p>Select a page, global design, or managed content to edit it.</p></div> : <>
         <div className="builder-inspector-head"><div><small>{draft.id ? "Editing" : "Creating"}</small><strong>{draft.title || `New ${typeLabels[draft.type]}`}</strong></div><button aria-label="Close editor" onClick={() => { setDraft(null); setPreviewMode("site"); }}><X size={17}/></button></div>
         <div className="builder-inspector-actions"><button onClick={duplicate}><Copy size={14}/> Duplicate</button>{draft.status === "published" && draft.slug && <a href={contentPath(draft.type, draft.slug)} target="_blank" rel="noreferrer"><ExternalLink size={14}/> Open</a>}<button className="danger" onClick={() => void remove()} disabled={!draft.id || saving}><Trash2 size={14}/> Delete</button></div>
         <div className="builder-fields">
@@ -447,8 +471,4 @@ function TypeFields({ draft, setData }: { draft: Draft; setData: (key: string, v
   if (draft.type === "page") return <div className="builder-type-fields"><label>Kicker<input value={String(draft.data.kicker || "")} onChange={(event) => setData("kicker", event.target.value)}/></label><label>Image description<input value={String(draft.data.imageAlt || "")} onChange={(event) => setData("imageAlt", event.target.value)}/></label></div>;
   if (draft.type === "team") return <label>Role<input value={String(draft.data.role || "")} onChange={(event) => setData("role", event.target.value)}/></label>;
   return <label>Service label<input value={String(draft.data.label || "")} onChange={(event) => setData("label", event.target.value)}/></label>;
-}
-
-function DraftPreview({ draft }: { draft: Draft }) {
-  return <div className="builder-draft-preview"><header><div className="builder-preview-nav"><strong>B28 ENTERTAINMENT</strong><span>PROJECTS　 ABOUT　 SERVICES　 CONTACT</span></div><div className="builder-preview-hero" style={draft.coverImage ? { backgroundImage: `linear-gradient(90deg,rgba(5,7,8,.88),rgba(5,7,8,.25)),url("${draft.coverImage.replace(/["\\]/g, "")}")` } : undefined}><div><small>{String(draft.data.kicker || draft.data.category || draft.data.format || typeLabels[draft.type])}</small><h1>{draft.title || "Untitled"}</h1><p>{draft.excerpt || "Add a short description in the editor."}</p></div></div></header><article><p>{draft.body || "Your main content will appear here."}</p>{draft.blocks.filter((block) => !block.hidden).sort((a, b) => a.order - b.order).map((block) => <section className={`preview-block ${block.type}`} key={block.id}><small>{blockLabel(block.type)}</small>{block.type === "image" ? <div className="preview-image" style={{ backgroundImage: `url("${String(block.data.text || "").replace(/["\\]/g, "")}")` }}/>: block.type === "cta" ? <button>{String(block.data.label || "Call to action")}</button> : <p>{String(block.data.text || `Add ${blockLabel(block.type).toLocaleLowerCase()} content`)}</p>}</section>)}</article></div>;
 }
