@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import type { CustomElement, ElementOverride } from "@/lib/site-settings";
 import { resizeGeometry, rotationDelta, type ResizeHandle } from "@/lib/transform-geometry";
+import { canEditVisualText, isTypingTarget } from "@/lib/visual-text-editing";
 
 export type SelectedVisualElement = { path: string; selector: string; tag: string; label: string; text: string; src: string; href: string; alt: string; canEditText: boolean; locked?: boolean; styles: Record<string, string> };
 type VisualCommand =
@@ -13,7 +14,20 @@ type VisualCommand =
   | { source: "b28-builder"; type: "custom"; path: string; items: CustomElement[] }
   | { source: "b28-builder"; type: "state"; path: string; overrides: ElementOverride[]; items: CustomElement[] };
 
-const editableTextTags = new Set(["p", "h1", "h2", "h3", "h4", "h5", "h6", "a", "button", "span", "em", "strong", "small", "label"]);
+function editableText(element: HTMLElement) { return canEditVisualText(element.tagName, [...element.children].map((child) => child.tagName), Boolean(element.textContent?.trim())); }
+
+// Give direct text alongside icons/other children its own stable editable node.
+// Run on public pages too, so saved selectors resolve without the editor.
+function prepareTextNodes() {
+  document.querySelectorAll<HTMLElement>(".site-shell *").forEach((element) => {
+    if (!(element instanceof HTMLElement) || element.closest("script,style,svg,[contenteditable],input,textarea,select") || ![...element.children].some((child) => child.tagName !== "BR")) return;
+    [...element.childNodes].forEach((node, index) => {
+      if (node.nodeType !== Node.TEXT_NODE || !node.textContent?.trim()) return;
+      const span = document.createElement("span"); span.dataset.editId = `text-${cssPath(element)}-${index}`;
+      element.replaceChild(span, node); span.append(node);
+    });
+  });
+}
 type ElementSnapshot = { selector: string; html: string; style: string | null; hidden: boolean; src: string | null; href: string | null; alt: string | null; locked: string | null };
 
 function isLocked(element: HTMLElement) { return Boolean(element.closest('[data-editor-locked="true"]')); }
@@ -46,11 +60,14 @@ function cssPath(element: HTMLElement) {
 function visualData(element: HTMLElement, path: string): SelectedVisualElement {
   const computed = getComputedStyle(element);
   const tag = element.tagName.toLocaleLowerCase();
-  return { path, selector: cssPath(element), tag, label: element.getAttribute("aria-label") || element.textContent?.trim().slice(0, 80) || tag, text: element.innerText || "", src: element instanceof HTMLImageElement || element instanceof HTMLIFrameElement ? element.getAttribute("src") || "" : "", href: element instanceof HTMLAnchorElement ? element.getAttribute("href") || "" : "", alt: element instanceof HTMLImageElement ? element.alt : "", locked: isLocked(element), canEditText: editableTextTags.has(tag) && !isLocked(element), styles: { color: computed.color, "background-color": computed.backgroundColor, "background-image": computed.backgroundImage, "font-family": computed.fontFamily, "font-size": computed.fontSize, "font-weight": computed.fontWeight, "text-align": computed.textAlign, "line-height": computed.lineHeight, "letter-spacing": computed.letterSpacing, padding: computed.padding, margin: computed.margin, width: computed.width, height: computed.height, "border-radius": computed.borderRadius, opacity: computed.opacity, rotate: computed.rotate } };
+  return { path, selector: cssPath(element), tag, label: element.getAttribute("aria-label") || element.textContent?.trim().slice(0, 80) || tag, text: element.innerText || "", src: element instanceof HTMLImageElement || element instanceof HTMLIFrameElement ? element.getAttribute("src") || "" : "", href: element instanceof HTMLAnchorElement ? element.getAttribute("href") || "" : "", alt: element instanceof HTMLImageElement ? element.alt : "", locked: isLocked(element), canEditText: editableText(element) && !isLocked(element), styles: { color: computed.color, "background-color": computed.backgroundColor, "background-image": computed.backgroundImage, "font-family": computed.fontFamily, "font-size": computed.fontSize, "font-weight": computed.fontWeight, "text-align": computed.textAlign, "line-height": computed.lineHeight, "letter-spacing": computed.letterSpacing, padding: computed.padding, margin: computed.margin, width: computed.width, height: computed.height, "border-radius": computed.borderRadius, opacity: computed.opacity, rotate: computed.rotate } };
 }
 
 function setElementText(element: HTMLElement, value: string) {
-  if (editableTextTags.has(element.tagName.toLocaleLowerCase()) && element.textContent !== value) element.textContent = value;
+  // Earlier builder versions saved whole-heading/paragraph overrides, including
+  // headings with nested emphasis. Keep those published edits compatible.
+  const legacyTextTag = /^(p|h[1-6]|a|button|span|em|strong|small|label)$/i.test(element.tagName);
+  if ((editableText(element) || legacyTextTag) && element.innerText !== value) element.textContent = value;
 }
 
 function applyOverride(override: ElementOverride) {
@@ -139,20 +156,48 @@ function makeToolbar(path: string, selected: () => HTMLElement | null, selectEle
   const toolbar = document.createElement("div"); toolbar.className = "visual-inline-toolbar"; toolbar.dataset.visualUi = "true"; document.body.append(toolbar);
   const transform = document.createElement("div"); transform.className = "visual-transform-box"; transform.dataset.visualUi = "true"; document.body.append(transform);
   let cancelDrag: (() => void) | null = null;
-  const action = (label: string, handler: () => void, className = "") => { const button = document.createElement("button"); button.type = "button"; button.textContent = label; button.className = className; button.addEventListener("click", (event) => { event.preventDefault(); event.stopPropagation(); handler(); }); toolbar.append(button); };
+  const action = (label: string, handler: () => void, className = "") => { const button = document.createElement("button"); button.type = "button"; button.textContent = label; button.className = className; button.addEventListener("pointerdown", (event) => event.preventDefault()); button.addEventListener("click", (event) => { event.preventDefault(); event.stopPropagation(); handler(); }); toolbar.append(button); };
+  const textControls = (element: HTMLElement, data: SelectedVisualElement) => {
+    const style = (property: string, value: string) => tellParent("change", { element: data, patch: { styles: { [property]: value } } });
+    const field = (label: string, type: string, value: string, property: string, unit = "") => {
+      const wrapper = document.createElement("label"); wrapper.textContent = label;
+      const input = document.createElement("input"); input.type = type; input.value = value; input.setAttribute("aria-label", label);
+      if (type === "number") { input.step = "0.1"; if (property === "font-size" || property === "line-height") input.min = "0.1"; }
+      input.addEventListener("change", () => { if (input.value && input.checkValidity()) style(property, `${input.value}${unit}`); }); wrapper.append(input); toolbar.append(wrapper);
+    };
+    const choice = (label: string, property: string, values: string[], value: string) => {
+      const select = document.createElement("select"); select.setAttribute("aria-label", label); select.title = label;
+      [...new Set([value, ...values])].forEach((value) => { const option = document.createElement("option"); option.value = value; option.textContent = value; select.append(option); });
+      select.value = value; select.addEventListener("change", () => style(property, select.value)); toolbar.append(select);
+    };
+    const computed = getComputedStyle(element);
+    choice("Font family", "font-family", ["Arial, sans-serif", "Georgia, serif", "Verdana, sans-serif", "monospace"], computed.fontFamily);
+    field("Size", "number", String(parseFloat(computed.fontSize)), "font-size", "px");
+    const rgb = computed.color.match(/\d+/g); const color = rgb ? `#${rgb.slice(0, 3).map((part) => Number(part).toString(16).padStart(2, "0")).join("")}` : "#ffffff";
+    field("Color", "color", color, "color");
+    field("Line height", "number", String(parseFloat(computed.lineHeight) || parseFloat(computed.fontSize) * 1.2), "line-height", "px");
+    field("Spacing", "number", String(parseFloat(computed.letterSpacing) || 0), "letter-spacing", "px");
+    choice("Text alignment", "text-align", ["left", "center", "right", "justify"], computed.textAlign);
+    action("U", () => style("text-decoration", computed.textDecorationLine.includes("underline") ? "none" : "underline"));
+  };
   const refresh = () => {
     const element = selected(); if (!element || !element.isConnected) { toolbar.hidden = true; transform.hidden = true; return; }
-    toolbar.hidden = false; toolbar.replaceChildren(); const data = visualData(element, path);
+    toolbar.hidden = false; const data = visualData(element, path);
+    // Keep toolbar fields mounted while typing into them, even as patches arrive.
+    if (!toolbar.contains(document.activeElement)) {
+    toolbar.replaceChildren();
     const lockOwner = element.closest<HTMLElement>('[data-editor-locked="true"]') || element;
     action(data.locked ? "Unlock" : "Lock", () => tellParent("change", { element: visualData(lockOwner, path), patch: { locked: !data.locked } }));
     if (!data.locked) {
-      if (data.canEditText) { action("Edit text", () => { element.setAttribute("contenteditable", "plaintext-only"); element.focus(); }); action("B", () => tellParent("change", { element: data, patch: { styles: { "font-weight": getComputedStyle(element).fontWeight === "700" ? "400" : "700" } } }), "strong"); action("I", () => tellParent("change", { element: data, patch: { styles: { "font-style": getComputedStyle(element).fontStyle === "italic" ? "normal" : "italic" } } }), "italic"); }
+      if (data.canEditText) { action("Edit text", () => { element.setAttribute("contenteditable", "plaintext-only"); element.focus(); }); action("B", () => tellParent("change", { element: data, patch: { styles: { "font-weight": getComputedStyle(element).fontWeight === "700" ? "400" : "700" } } }), "strong"); action("I", () => tellParent("change", { element: data, patch: { styles: { "font-style": getComputedStyle(element).fontStyle === "italic" ? "normal" : "italic" } } }), "italic"); textControls(element, data); }
       if (element instanceof HTMLImageElement || element instanceof HTMLIFrameElement) action("Replace", () => tellParent("request-upload", { element: data, field: "src" }));
       else action("Background image", () => tellParent("request-upload", { element: data, field: "background-image" }));
-      if (element instanceof HTMLAnchorElement) action("Link", () => { const href = window.prompt("Enter the link URL", element.getAttribute("href") || ""); if (href !== null) tellParent("change", { element: data, patch: { href } }); });
+      const link = element.closest<HTMLAnchorElement>("a");
+      if (link) action("Link", () => { const href = window.prompt("Enter the link URL", link.getAttribute("href") || ""); if (href !== null) tellParent("change", { element: visualData(link, path), patch: { href } }); });
       action("Duplicate", () => tellParent("action", { action: "duplicate", element: data })); action("Delete", () => tellParent("action", { action: "delete", element: data }), "danger");
     }
-    const rect = element.getBoundingClientRect(); toolbar.style.left = `${Math.max(8, Math.min(window.innerWidth - toolbar.offsetWidth - 8, rect.left))}px`; toolbar.style.top = `${Math.max(8, rect.top - 65)}px`;
+    }
+    const rect = element.getBoundingClientRect(); toolbar.style.left = `${Math.max(8, Math.min(window.innerWidth - toolbar.offsetWidth - 8, rect.left))}px`; toolbar.style.top = `${Math.max(8, rect.top - toolbar.offsetHeight - 12)}px`;
     transform.hidden = Boolean(data.locked); const width = element.offsetWidth; const height = element.offsetHeight;
     transform.style.left = `${rect.left + rect.width / 2 - width / 2}px`; transform.style.top = `${rect.top + rect.height / 2 - height / 2}px`; transform.style.width = `${width}px`; transform.style.height = `${height}px`; transform.style.rotate = getComputedStyle(element).rotate;
   };
@@ -204,13 +249,16 @@ export function VisualEditorRuntime({ overrides, customElements }: { overrides: 
     let activeOverrides = overrides;
     let stateFrame = 0;
     const applyTracked = (override: ElementOverride) => { rememberElement(override.selector, snapshots); applyOverride(override); };
-    const applyAll = () => { renderCustomElements(pathname, customElements, safeMode); overrides.filter((entry) => entry.path === pathname).forEach(applyTracked); };
-    applyAll(); const timer = window.setTimeout(applyAll, 150); const editing = parameters.get("visual-editor") === "1";
+    const applyAll = () => { renderCustomElements(pathname, customElements, safeMode); prepareTextNodes(); overrides.filter((entry) => entry.path === pathname).forEach(applyTracked); };
+    applyAll(); const timer = window.setTimeout(() => document.querySelector(".site-shell [contenteditable]") ? undefined : overrides.filter((entry) => entry.path === pathname).forEach(applyTracked), 150); const editing = parameters.get("visual-editor") === "1";
     if (safeMode) { document.documentElement.classList.add("visual-safe-mode"); document.querySelectorAll("video").forEach((video) => video.pause()); }
     if (!editing) return () => { window.clearTimeout(timer); document.documentElement.classList.remove("visual-safe-mode"); };
     document.documentElement.classList.add("visual-editing"); let hovered: HTMLElement | null = null; let selected: HTMLElement | null = null; let editTimer = 0; let multiple: HTMLElement[] = [];
+    let pendingEdit: (() => void) | null = null;
+    const localTexts = new Map<string, string>();
+    const flushEdit = () => { window.clearTimeout(editTimer); const send = pendingEdit; pendingEdit = null; send?.(); };
     const clearMultiple = () => { multiple.forEach((element) => element.removeAttribute("data-visual-multi-selected")); multiple = []; };
-    const selectElement = (element: HTMLElement) => { clearMultiple(); selected?.removeAttribute("data-visual-selected"); if (selected && selected !== element) selected.removeAttribute("contenteditable"); selected = element; selected.dataset.visualSelected = "true"; const data = visualData(selected, pathname); rememberElement(data.selector, snapshots); tellParent("selected", { element: data }); if (data.canEditText) { selected.setAttribute("contenteditable", "plaintext-only"); selected.focus(); } toolbar.refresh(); };
+    const selectElement = (element: HTMLElement) => { flushEdit(); clearMultiple(); selected?.removeAttribute("data-visual-selected"); if (selected && selected !== element) selected.removeAttribute("contenteditable"); selected = element; selected.dataset.visualSelected = "true"; const data = visualData(selected, pathname); rememberElement(data.selector, snapshots); tellParent("selected", { element: data }); if (data.canEditText) { selected.setAttribute("contenteditable", "plaintext-only"); selected.focus(); } toolbar.refresh(); };
     const toolbar = makeToolbar(pathname, () => selected, selectElement);
     const selectAll = () => {
       if (selected?.isContentEditable) { const range = document.createRange(); range.selectNodeContents(selected); const selection = window.getSelection(); selection?.removeAllRanges(); selection?.addRange(range); return; }
@@ -223,28 +271,45 @@ export function VisualEditorRuntime({ overrides, customElements }: { overrides: 
     };
     const pointerDown = (event: PointerEvent) => { const target = event.target as HTMLElement; if (selected && selected === target && !selected.isContentEditable && !target.closest("[data-visual-ui]") && !isLocked(selected)) toolbar.beginMove(event); };
     const hover = (event: MouseEvent) => { const target = (event.target as HTMLElement).closest<HTMLElement>(".site-shell *"); if (!target || target.closest("script,style") || (event.target as HTMLElement).closest("[data-visual-ui]")) return; if (hovered && hovered !== selected) hovered.removeAttribute("data-visual-hover"); hovered = target; if (hovered !== selected) hovered.dataset.visualHover = "true"; };
-    const choose = (event: MouseEvent) => { if ((event.target as HTMLElement).closest("[data-visual-ui]")) return; const target = (event.target as HTMLElement).closest<HTMLElement>(".site-shell *"); if (!target || target.closest("script,style")) return; event.preventDefault(); event.stopPropagation(); selectElement(target.closest<HTMLElement>('[data-editor-locked="true"]') || target); };
-    const input = (event: Event) => { const target = event.target as HTMLElement; if (!selected || target !== selected || !selected.isContentEditable) return; window.clearTimeout(editTimer); editTimer = window.setTimeout(() => tellParent("change", { element: visualData(selected!, pathname), patch: { text: selected!.innerText } }), 250); };
+    const choose = (event: MouseEvent) => { if ((event.target as HTMLElement).closest("[data-visual-ui]")) return; const target = (event.target as HTMLElement).closest<HTMLElement>(".site-shell *"); if (!target || target.closest("script,style")) return;
+      // Native clicks inside the current text editor must place the caret/select
+      // words, not select a new component or suppress the browser's editing.
+      if (selected?.isContentEditable && selected.contains(target)) { event.stopPropagation(); return; }
+      event.preventDefault(); event.stopPropagation(); selectElement(target.closest<HTMLElement>('[data-editor-locked="true"]') || target);
+      if (selected?.isContentEditable) {
+        const caretDocument = document as Document & { caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null; caretRangeFromPoint?: (x: number, y: number) => Range | null };
+        const position = caretDocument.caretPositionFromPoint?.(event.clientX, event.clientY);
+        const range = caretDocument.caretRangeFromPoint?.(event.clientX, event.clientY) || document.createRange();
+        if (position && selected.contains(position.offsetNode)) { range.setStart(position.offsetNode, position.offset); range.collapse(true); }
+        else if (!selected.contains(range.startContainer)) { range.selectNodeContents(selected); range.collapse(false); }
+        const selection = window.getSelection(); selection?.removeAllRanges(); selection?.addRange(range);
+      }
+    };
+    const input = (event: Event) => { const target = event.target as HTMLElement; if (!selected || !selected.contains(target) || !selected.isContentEditable) return; const data = visualData(selected, pathname); const text = selected.innerText; localTexts.set(data.selector, text); pendingEdit = () => tellParent("change", { element: data, patch: { text } }); window.clearTimeout(editTimer); editTimer = window.setTimeout(flushEdit, 250); };
     const keyboard = (event: KeyboardEvent) => {
       const key = event.key.toLocaleLowerCase(); const command = event.ctrlKey || event.metaKey;
+      if (isTypingTarget(event.target as HTMLElement) && (event.target as HTMLElement).closest("[data-visual-ui]")) return;
       if (command && key === "a" && (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement)) return;
       if (command && key === "a") { event.preventDefault(); selectAll(); return; }
-      if (command && key === "z") { event.preventDefault(); tellParent("shortcut", { action: event.shiftKey ? "redo" : "undo" }); return; }
-      if (command && key === "s") { event.preventDefault(); tellParent("shortcut", { action: "save" }); return; }
+      if (command && key === "z") { event.preventDefault(); flushEdit(); tellParent("shortcut", { action: event.shiftKey ? "redo" : "undo" }); return; }
+      if (command && key === "s") { event.preventDefault(); flushEdit(); tellParent("shortcut", { action: "save" }); return; }
       if (command && key === "p") { event.preventDefault(); tellParent("shortcut", { action: "preview" }); return; }
       if (command && !selected?.isContentEditable && (key === "c" || key === "v")) { event.preventDefault(); tellParent("shortcut", { action: key === "c" ? "copy" : "paste" }); return; }
       if (event.key === "Escape") { event.preventDefault(); tellParent("shortcut", { action: "deselect" }); return; }
+      // Backspace/Delete (and composition) always belong to the focused editor,
+      // including toolbar inputs, even when a non-text component is selected.
+      if (isTypingTarget(event.target as HTMLElement) || event.isComposing) return;
       if ((event.key === "Delete" || event.key === "Backspace") && multiple.length) { event.preventDefault(); tellParent("action", { action: "delete-selection", elements: multiple.filter((element) => !isLocked(element) && !element.querySelector('[data-editor-locked="true"]')).map((element) => visualData(element, pathname)) }); clearMultiple(); return; }
       if ((event.key === "Delete" || event.key === "Backspace") && selected && !selected.isContentEditable && !isLocked(selected)) { event.preventDefault(); tellParent("action", { action: "delete", element: visualData(selected, pathname) }); }
     };
     const message = (event: MessageEvent<VisualCommand>) => {
       if (event.source !== window.parent || event.origin !== window.location.origin || event.data?.source !== "b28-builder") return;
       const command = event.data;
-      if (command.type === "apply") { activeOverrides = [...activeOverrides.filter((entry) => !(entry.path === command.override.path && entry.selector === command.override.selector)), command.override]; applyTracked(command.override); toolbar.refresh(); }
-      if (command.type === "custom") { const selector = selected ? cssPath(selected) : null; renderCustomElements(command.path, command.items, safeMode); activeOverrides.filter((entry) => entry.path === command.path).forEach(applyTracked); if (selector) { selected = safeQuery(selector); if (selected) selected.dataset.visualSelected = "true"; } toolbar.refresh(); }
-      if (command.type === "state") { activeOverrides = command.overrides; const commandPath = command.path; restoreElements(snapshots); renderCustomElements(commandPath, command.items, safeMode); command.overrides.filter((entry) => entry.path === commandPath).forEach(applyTracked); toolbar.refresh(); window.cancelAnimationFrame(stateFrame); stateFrame = window.requestAnimationFrame(() => { command.overrides.filter((entry) => entry.path === commandPath).forEach(applyTracked); toolbar.refresh(); }); }
+      if (command.type === "apply") { activeOverrides = [...activeOverrides.filter((entry) => !(entry.path === command.override.path && entry.selector === command.override.selector)), command.override]; const override = command.override; const latestText = localTexts.get(override.selector); if (override.text !== undefined && latestText !== undefined && override.text !== latestText) applyTracked({ ...override, text: undefined }); else { if (override.text === latestText) localTexts.delete(override.selector); applyTracked(override); } toolbar.refresh(); }
+      if (command.type === "custom") { flushEdit(); const selector = selected ? cssPath(selected) : null; renderCustomElements(command.path, command.items, safeMode); prepareTextNodes(); activeOverrides.filter((entry) => entry.path === command.path).forEach(applyTracked); if (selector) { const element = safeQuery(selector); if (element) selectElement(element); else selected = null; } toolbar.refresh(); }
+      if (command.type === "state") { window.clearTimeout(editTimer); pendingEdit = null; localTexts.clear(); const selector = selected ? cssPath(selected) : null; activeOverrides = command.overrides; const commandPath = command.path; restoreElements(snapshots); renderCustomElements(commandPath, command.items, safeMode); prepareTextNodes(); command.overrides.filter((entry) => entry.path === commandPath).forEach(applyTracked); if (selector) { const element = safeQuery(selector); if (element && !element.hidden) selectElement(element); else selected = null; } toolbar.refresh(); window.cancelAnimationFrame(stateFrame); stateFrame = window.requestAnimationFrame(() => { command.overrides.filter((entry) => entry.path === commandPath).forEach(applyTracked); toolbar.refresh(); }); }
       if (command.type === "select-all") selectAll();
-      if (command.type === "select-clear") { clearMultiple(); selected?.removeAttribute("data-visual-selected"); selected?.removeAttribute("contenteditable"); selected = null; toolbar.refresh(); }
+      if (command.type === "select-clear") { flushEdit(); clearMultiple(); selected?.removeAttribute("data-visual-selected"); selected?.removeAttribute("contenteditable"); selected = null; toolbar.refresh(); }
     };
     document.addEventListener("pointerdown", pointerDown, true); document.addEventListener("mousemove", hover, true); document.addEventListener("click", choose, true); document.addEventListener("input", input, true); document.addEventListener("keydown", keyboard, true); window.addEventListener("message", message); tellParent("ready", { path: pathname });
     return () => { window.clearTimeout(timer); window.clearTimeout(editTimer); window.cancelAnimationFrame(stateFrame); toolbar.destroy(); document.documentElement.classList.remove("visual-editing", "visual-safe-mode"); clearMultiple(); document.removeEventListener("pointerdown", pointerDown, true); document.removeEventListener("mousemove", hover, true); document.removeEventListener("click", choose, true); document.removeEventListener("input", input, true); document.removeEventListener("keydown", keyboard, true); window.removeEventListener("message", message); };

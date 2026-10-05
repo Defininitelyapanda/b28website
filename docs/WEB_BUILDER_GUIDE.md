@@ -46,6 +46,8 @@ Global design controls identity, logo, navigation labels, primary action, site c
 
 ## Keyboard shortcuts
 
+Click any unlocked website text to type directly, including navigation, buttons, captions, and text beside icons. The floating toolbar beside the selection offers font family, size, color, alignment, bold/italic/underline, line height, spacing, and link controls without opening Properties. Clicking again places the caret normally; Backspace and Delete remove characters or selected text while typing, never the whole component. Use the toolbar's Delete button to remove a text component. Locked text must be unlocked before editing.
+
 - `Ctrl/Cmd+Z`: undo
 - `Ctrl/Cmd+Shift+Z`: redo
 - `Ctrl/Cmd+S`: save draft
