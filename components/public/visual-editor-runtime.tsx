@@ -83,9 +83,10 @@ function embedUrl(value: string) {
   } catch { return value; }
 }
 
-function customNode(item: CustomElement) {
+function customNode(item: CustomElement, safeMode = false) {
   let element: HTMLElement;
   if (item.type === "image") { const image = document.createElement("img"); image.src = item.src; image.alt = item.content; element = image; }
+  else if (item.type === "embed" && safeMode) { element = document.createElement("div"); element.textContent = "Embedded media disabled in safe mode"; element.className = "visual-safe-placeholder"; }
   else if (item.type === "embed") { const frame = document.createElement("iframe"); frame.src = embedUrl(item.src || item.href); frame.title = item.content || "Embedded media"; frame.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"; frame.allowFullscreen = true; element = frame; }
   else if (item.type === "button") { const link = document.createElement("a"); link.href = item.href || "#"; link.textContent = item.content || "Button"; link.className = "button light"; element = link; }
   else if (item.type === "divider") element = document.createElement("hr");
@@ -98,14 +99,14 @@ function customNode(item: CustomElement) {
   return element;
 }
 
-function renderCustomElements(path: string, items: CustomElement[]) {
+function renderCustomElements(path: string, items: CustomElement[], safeMode = false) {
   const main = document.querySelector(".site-shell main"); if (!main) return;
   document.querySelectorAll<HTMLElement>("[data-custom-element]").forEach((element) => element.remove());
   let zone = main.querySelector<HTMLElement>(":scope > .visual-custom-zone");
   if (!zone) { zone = document.createElement("section"); zone.className = "visual-custom-zone wrap section-pad"; main.append(zone); }
   zone.replaceChildren();
   for (const item of items.filter((entry) => entry.path === path).sort((a, b) => a.order - b.order)) {
-    const node = customNode(item); const anchor = item.anchorSelector ? safeQuery(item.anchorSelector) : null;
+    const node = customNode(item, safeMode); const anchor = item.anchorSelector ? safeQuery(item.anchorSelector) : null;
     if (!anchor) zone.append(node);
     else if (item.placement === "before") anchor.before(node);
     else if (item.placement === "inside") anchor.append(node);
@@ -158,28 +159,38 @@ function makeToolbar(path: string, selected: () => HTMLElement | null, selectEle
 export function VisualEditorRuntime({ overrides, customElements }: { overrides: ElementOverride[]; customElements: CustomElement[] }) {
   const pathname = usePathname();
   useEffect(() => {
+    const parameters = new URLSearchParams(window.location.search); const safeMode = parameters.get("safe") === "1";
     const snapshots = new Map<string, ElementSnapshot>();
     const applyTracked = (override: ElementOverride) => { rememberElement(override.selector, snapshots); applyOverride(override); };
-    const applyAll = () => { renderCustomElements(pathname, customElements); overrides.filter((entry) => entry.path === pathname).forEach(applyTracked); };
-    applyAll(); const timer = window.setTimeout(applyAll, 150); const editing = new URLSearchParams(window.location.search).get("visual-editor") === "1";
-    if (!editing) return () => window.clearTimeout(timer);
+    const applyAll = () => { renderCustomElements(pathname, customElements, safeMode); overrides.filter((entry) => entry.path === pathname).forEach(applyTracked); };
+    applyAll(); const timer = window.setTimeout(applyAll, 150); const editing = parameters.get("visual-editor") === "1";
+    if (safeMode) { document.documentElement.classList.add("visual-safe-mode"); document.querySelectorAll("video").forEach((video) => video.pause()); }
+    if (!editing) return () => { window.clearTimeout(timer); document.documentElement.classList.remove("visual-safe-mode"); };
     document.documentElement.classList.add("visual-editing"); let hovered: HTMLElement | null = null; let selected: HTMLElement | null = null; let editTimer = 0;
     const selectElement = (element: HTMLElement) => { selected?.removeAttribute("data-visual-selected"); if (selected && selected !== element) selected.removeAttribute("contenteditable"); selected = element; selected.dataset.visualSelected = "true"; const data = visualData(selected, pathname); rememberElement(data.selector, snapshots); tellParent("selected", { element: data }); if (data.canEditText) { selected.setAttribute("contenteditable", "plaintext-only"); selected.focus(); } toolbar.refresh(); };
     const toolbar = makeToolbar(pathname, () => selected, selectElement);
     const hover = (event: MouseEvent) => { const target = (event.target as HTMLElement).closest<HTMLElement>(".site-shell *"); if (!target || target.closest("script,style") || (event.target as HTMLElement).closest("[data-visual-ui]")) return; if (hovered && hovered !== selected) hovered.removeAttribute("data-visual-hover"); hovered = target; if (hovered !== selected) hovered.dataset.visualHover = "true"; };
     const choose = (event: MouseEvent) => { if ((event.target as HTMLElement).closest("[data-visual-ui]")) return; const target = (event.target as HTMLElement).closest<HTMLElement>(".site-shell *"); if (!target || target.closest("script,style")) return; event.preventDefault(); event.stopPropagation(); selectElement(target); };
     const input = (event: Event) => { const target = event.target as HTMLElement; if (!selected || target !== selected || !selected.isContentEditable) return; window.clearTimeout(editTimer); editTimer = window.setTimeout(() => tellParent("change", { element: visualData(selected!, pathname), patch: { text: selected!.innerText } }), 250); };
-    const keyboard = (event: KeyboardEvent) => { if ((event.ctrlKey || event.metaKey) && event.key.toLocaleLowerCase() === "z") { event.preventDefault(); tellParent("shortcut", { action: event.shiftKey ? "redo" : "undo" }); return; } if ((event.key === "Delete" || event.key === "Backspace") && selected && !selected.isContentEditable) { event.preventDefault(); tellParent("action", { action: "delete", element: visualData(selected, pathname) }); } };
+    const keyboard = (event: KeyboardEvent) => {
+      const key = event.key.toLocaleLowerCase(); const command = event.ctrlKey || event.metaKey;
+      if (command && key === "z") { event.preventDefault(); tellParent("shortcut", { action: event.shiftKey ? "redo" : "undo" }); return; }
+      if (command && key === "s") { event.preventDefault(); tellParent("shortcut", { action: "save" }); return; }
+      if (command && key === "p") { event.preventDefault(); tellParent("shortcut", { action: "preview" }); return; }
+      if (command && !selected?.isContentEditable && (key === "c" || key === "v")) { event.preventDefault(); tellParent("shortcut", { action: key === "c" ? "copy" : "paste" }); return; }
+      if (event.key === "Escape") { event.preventDefault(); tellParent("shortcut", { action: "deselect" }); return; }
+      if ((event.key === "Delete" || event.key === "Backspace") && selected && !selected.isContentEditable) { event.preventDefault(); tellParent("action", { action: "delete", element: visualData(selected, pathname) }); }
+    };
     const message = (event: MessageEvent<VisualCommand>) => {
       if (event.origin !== window.location.origin || event.data?.source !== "b28-builder") return;
       const command = event.data;
       if (command.type === "apply") { applyTracked(command.override); toolbar.refresh(); }
-      if (command.type === "custom") renderCustomElements(command.path, command.items);
-      if (command.type === "state") { const commandPath = command.path; restoreElements(snapshots); renderCustomElements(commandPath, command.items); command.overrides.filter((entry) => entry.path === commandPath).forEach(applyTracked); toolbar.refresh(); }
+      if (command.type === "custom") renderCustomElements(command.path, command.items, safeMode);
+      if (command.type === "state") { const commandPath = command.path; restoreElements(snapshots); renderCustomElements(commandPath, command.items, safeMode); command.overrides.filter((entry) => entry.path === commandPath).forEach(applyTracked); toolbar.refresh(); }
       if (command.type === "select-clear") { selected?.removeAttribute("data-visual-selected"); selected?.removeAttribute("contenteditable"); selected = null; toolbar.refresh(); }
     };
     document.addEventListener("mousemove", hover, true); document.addEventListener("click", choose, true); document.addEventListener("input", input, true); document.addEventListener("keydown", keyboard, true); window.addEventListener("message", message); tellParent("ready", { path: pathname });
-    return () => { window.clearTimeout(timer); window.clearTimeout(editTimer); toolbar.destroy(); document.documentElement.classList.remove("visual-editing"); document.removeEventListener("mousemove", hover, true); document.removeEventListener("click", choose, true); document.removeEventListener("input", input, true); document.removeEventListener("keydown", keyboard, true); window.removeEventListener("message", message); };
+    return () => { window.clearTimeout(timer); window.clearTimeout(editTimer); toolbar.destroy(); document.documentElement.classList.remove("visual-editing", "visual-safe-mode"); document.removeEventListener("mousemove", hover, true); document.removeEventListener("click", choose, true); document.removeEventListener("input", input, true); document.removeEventListener("keydown", keyboard, true); window.removeEventListener("message", message); };
   }, [pathname, overrides, customElements]);
   return null;
 }

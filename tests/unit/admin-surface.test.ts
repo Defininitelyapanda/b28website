@@ -79,7 +79,7 @@ test("visual editor supports inline controls, history shortcuts, anchored elemen
   assert.match(builder, /designHistoryIndex/);
   assert.match(builder, /designHistoryIndexRef/);
   assert.match(builder, /Back to last saved/);
-  assert.match(builder, /fetch\("\/api\/admin2714\/site", \{ cache: "no-store" \}\)/);
+  assert.match(builder, /action: "discard-draft"/);
   const restoreDesign = builder.match(/function restoreDesign[\s\S]*?\n  }/)?.[0] || "";
   assert.match(restoreDesign, /sendDesignState\(next\)/);
   assert.doesNotMatch(restoreDesign, /setPreviewKey/);
@@ -93,4 +93,26 @@ test("visual editor supports inline controls, history shortcuts, anchored elemen
   assert.match(inspector, /Video \/ embed/);
   assert.match(inspector, /Background image/);
   assert.match(config, /frame-src 'self' https:/);
+});
+
+test("site design uses isolated autosaved drafts, publish snapshots, and safe mode", async () => {
+  const [builder, cms, route, adminPage, proxy, store] = await Promise.all([
+    readFile(new URL("../../components/builder/site-builder.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../../lib/cms.ts", import.meta.url), "utf8"),
+    readFile(new URL("../../app/api/admin2714/site/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../../app/admin2714/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../../proxy.ts", import.meta.url), "utf8"),
+    readFile(new URL("../../lib/local-store.ts", import.meta.url), "utf8"),
+  ]);
+  assert.match(builder, /action: "save-draft"/);
+  assert.match(builder, /Publish changes/);
+  assert.match(builder, /Back to last saved/);
+  assert.match(cms, /site-design-draft/);
+  assert.match(cms, /Automatic pre-publish snapshot/);
+  assert.match(route, /discard-draft/);
+  assert.match(adminPage, /safeMode/);
+  assert.match(proxy, /ADMIN_AUTH_REQUIRED/);
+  assert.match(store, /drafts: Array/);
+  assert.match(cms, /input\.status === "published"/);
+  assert.match(cms, /store\.drafts = store\.drafts\.filter/);
 });

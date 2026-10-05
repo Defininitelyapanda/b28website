@@ -1,9 +1,15 @@
 import { NextResponse } from "next/server";
 import { storeMedia } from "@/lib/storage";
-import { updateStore } from "@/lib/local-store";
+import { readStore, updateStore } from "@/lib/local-store";
 import { STUDIO_USER_ID } from "@/lib/studio-identity";
 
 export const runtime = "nodejs";
+
+export async function GET() {
+  const store = await readStore();
+  const data = [...store.media].sort((a, b) => String(b.created_at).localeCompare(String(a.created_at))).slice(0, 500);
+  return NextResponse.json({ success: true, data });
+}
 
 export async function POST(request: Request) {
   try {

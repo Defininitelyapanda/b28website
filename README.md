@@ -22,9 +22,12 @@ Set the public site URL locally and on the hosting platform:
 NEXT_PUBLIC_SITE_URL="https://YOUR_DOMAIN"
 CMS_DATA_DIR="/data/cms"
 CMS_UPLOAD_DIR="/data/uploads"
+ADMIN_AUTH_ENABLED="false"
 ```
 
-There is no login or account authentication. Knowledge of `/admin2714` is the only access control, and its management APIs use the same unlinked namespace. Anyone who discovers the path can modify site content, so do not publish or link it.
+Authentication is deliberately disabled during this development phase. The admin route and every management API are already behind one server-side access abstraction. When `ADMIN_AUTH_ENABLED=true`, requests require the server-only `ADMIN_SESSION_TOKEN` through the `b28_admin_session` HttpOnly cookie or a Bearer token. Keep the token out of frontend variables and public source. With authentication disabled, anyone who discovers `/admin2714` can modify content, so do not publish or link the route.
+
+The editor stores site-design changes as a separate persistent draft. Autosave never changes the public website. Publishing creates a pre-publish snapshot and then promotes the draft to the live design. `/admin2714?safe=true` disables animation and third-party embeds for recovery work.
 
 ## Runtime data
 

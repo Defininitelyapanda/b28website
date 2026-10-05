@@ -7,6 +7,7 @@ import { syncYouTubeProjects } from "@/lib/youtube-projects";
 import { SiteFooter, SiteHeader } from "@/components/public/site-chrome";
 import { ContentBody, contentBlocks } from "@/components/public/content-blocks";
 import { SiteTheme } from "@/components/public/site-theme";
+import { contentMetadata } from "@/lib/content-metadata";
 
 export const dynamic = "force-dynamic";
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
@@ -14,7 +15,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   await syncYouTubeProjects();
   const project = await getContent(slug);
   if (!project) return { title: "Project not found" };
-  return { title: project.title, description: project.excerpt, openGraph: { title: `${project.title} — B28 Entertainment`, description: project.excerpt, images: project.coverImage ? [project.coverImage] : [] } };
+  return contentMetadata(project);
 }
 
 export default async function Project({ params }: { params: Promise<{ slug: string }> }) {

@@ -5,6 +5,7 @@ import { cloudflareCmsDatabase, type CmsDatabase } from "./cloudflare-bindings";
 
 export type LocalStore = {
   content: ContentItem[];
+  drafts: Array<Record<string, unknown>>;
   versions: Array<Record<string, unknown>>;
   contacts: Array<Record<string, unknown>>;
   media: Array<Record<string, unknown>>;
@@ -21,7 +22,7 @@ const dataDirectory = configuredDataDirectory ? path.resolve(configuredDataDirec
 const storePath = path.join(dataDirectory, "cms.json");
 const lockPath = path.join(dataDirectory, "cms.lock");
 let writes = Promise.resolve();
-const emptyStore = (): LocalStore => ({ content: [], versions: [], contacts: [], media: [], settings: [], navigation: [], activity: [], backups: [] });
+const emptyStore = (): LocalStore => ({ content: [], drafts: [], versions: [], contacts: [], media: [], settings: [], navigation: [], activity: [], backups: [] });
 
 async function readD1Store(database: CmsDatabase): Promise<LocalStore> {
   await database.prepare("CREATE TABLE IF NOT EXISTS b28_cms_state (id INTEGER PRIMARY KEY CHECK (id = 1), value TEXT NOT NULL, updated_at TEXT NOT NULL)").run();

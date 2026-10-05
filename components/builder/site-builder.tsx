@@ -2,10 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, ChevronDown, ChevronUp, Copy, ExternalLink, FileText, Laptop, Monitor, Plus, Redo2, RotateCcw, Save, Search, Send, Smartphone, Trash2, Undo2, Upload, X } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronUp, Clock3, Copy, ExternalLink, FileText, Images, Laptop, Monitor, Plus, Redo2, RotateCcw, Save, Search, Send, Smartphone, Trash2, Undo2, Upload, X } from "lucide-react";
 import type { ContentBlock, ContentItem, ContentStatus, ContentType } from "@/lib/cms-types";
 import { contentPath } from "@/lib/content-url";
-import { DEFAULT_SITE_SETTINGS, type CustomElement, type ElementOverride, type SitePageKey, type SiteSettings } from "@/lib/site-settings";
+import { DEFAULT_SITE_SETTINGS, normalizeSiteSettings, type CustomElement, type ElementOverride, type SitePageKey, type SiteSettings } from "@/lib/site-settings";
 import { SiteDesignInspector } from "./site-design-editor";
 import { ElementInspector } from "./element-inspector";
 import type { SelectedVisualElement } from "@/components/public/visual-editor-runtime";
@@ -27,6 +27,8 @@ type Draft = {
 
 type Viewport = "desktop" | "tablet" | "mobile";
 type PreviewMode = "design" | "site";
+type DesignVersion = { id: string; version: number; summary: string; author: string; createdAt: string };
+type MediaItem = { id: string; storage_key: string; filename: string; title: string; alt_text: string; mime_type: string; size: number; created_at: string };
 
 const typeLabels: Record<ContentType, string> = { page: "Page", project: "Project", article: "Journal", service: "Service", team: "Team" };
 const typeDescriptions: Record<ContentType, string> = {
@@ -54,7 +56,7 @@ function blockLabel(type: ContentBlock["type"]) {
   return ({ text: "Text", quote: "Quote", image: "Image", video: "Video", gallery: "Gallery", stats: "Statistics", timeline: "Timeline", cta: "Button" } as const)[type];
 }
 
-export function SiteBuilder({ initial, initialSettings }: { initial: ContentItem[]; initialSettings: SiteSettings }) {
+export function SiteBuilder({ initial, initialSettings, recoveredDesignDraft = false, safeMode = false }: { initial: ContentItem[]; initialSettings: SiteSettings; recoveredDesignDraft?: boolean; safeMode?: boolean }) {
   const [items, setItems] = useState(initial);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [history, setHistory] = useState<Draft[]>([]);
@@ -65,7 +67,7 @@ export function SiteBuilder({ initial, initialSettings }: { initial: ContentItem
   const [previewMode, setPreviewMode] = useState<PreviewMode>("site");
   const [previewPath, setPreviewPath] = useState("/");
   const [previewKey, setPreviewKey] = useState(0);
-  const [status, setStatus] = useState("Ready");
+  const [status, setStatus] = useState(safeMode ? "Safe mode — embeds and motion disabled" : recoveredDesignDraft ? "Recovered saved design draft" : "Ready");
   const [saving, setSaving] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [siteSettings, setSiteSettings] = useState(initialSettings);
@@ -73,14 +75,49 @@ export function SiteBuilder({ initial, initialSettings }: { initial: ContentItem
   const [designHistoryIndex, setDesignHistoryIndex] = useState(0);
   const [designTarget, setDesignTarget] = useState<"global" | SitePageKey | null>(null);
   const [selectedElement, setSelectedElement] = useState<SelectedVisualElement | null>(null);
+  const [designDirty, setDesignDirty] = useState(false);
+  const [showVersions, setShowVersions] = useState(false);
+  const [designVersions, setDesignVersions] = useState<DesignVersion[]>([]);
+  const [showMedia, setShowMedia] = useState(false);
+  const [localRecovery, setLocalRecovery] = useState<SiteSettings | null>(null);
+  const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
+  const [mediaQuery, setMediaQuery] = useState("");
   const uploadRef = useRef<HTMLInputElement>(null);
   const previewRef = useRef<HTMLIFrameElement>(null);
   const uploadReceiver = useRef<(path: string) => void>(() => undefined);
   const settingsRef = useRef(initialSettings);
   const designHistoryRef = useRef<SiteSettings[]>([initialSettings]);
   const designHistoryIndexRef = useRef(0);
+  const designRevisionRef = useRef(0);
+  const copiedElementRef = useRef<SelectedVisualElement | null>(null);
+  const designRequestsRef = useRef<Promise<unknown>>(Promise.resolve());
+
+  function requestDesign(url: string, body: unknown) {
+    const task = designRequestsRef.current.catch(() => undefined).then(async () => {
+      const response = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+      const result = await response.json() as { success?: boolean; data?: SiteSettings; error?: { message?: string } };
+      if (!response.ok || !result.success) throw new Error(result.error?.message || "Design changes could not be saved.");
+      return result;
+    });
+    designRequestsRef.current = task;
+    return task;
+  }
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => { try {
+      const raw = localStorage.getItem("b28-site-design-draft");
+      if (!raw) return;
+      const saved = JSON.parse(raw) as { settings?: Partial<SiteSettings> };
+      if (saved.settings) {
+        const settings = normalizeSiteSettings(saved.settings);
+        if (JSON.stringify(settings) !== JSON.stringify(initialSettings)) setLocalRecovery(settings);
+      }
+    } catch { /* Browser recovery is optional when storage is unavailable. */ } }, 0);
+    return () => window.clearTimeout(timer);
+  }, [initialSettings]);
 
   const visible = useMemo(() => items.filter((item) => (filter === "all" || item.type === filter) && `${item.title} ${item.slug}`.toLocaleLowerCase().includes(query.toLocaleLowerCase())), [items, filter, query]);
+  const visibleMedia = useMemo(() => mediaItems.filter((item) => `${item.filename} ${item.title} ${item.alt_text}`.toLocaleLowerCase().includes(mediaQuery.toLocaleLowerCase())), [mediaItems, mediaQuery]);
 
   useEffect(() => {
     if (!draft) return;
@@ -89,11 +126,27 @@ export function SiteBuilder({ initial, initialSettings }: { initial: ContentItem
   }, [draft]);
 
   useEffect(() => {
+    if (!designTarget || !designDirty || saving) return;
+    const revision = designRevisionRef.current;
+    try { localStorage.setItem("b28-site-design-draft", JSON.stringify({ savedAt: new Date().toISOString(), settings: siteSettings })); } catch { /* Server autosave still works without browser storage. */ }
+    const timer = window.setTimeout(async () => {
+      setStatus("Saving draft…");
+      try {
+        await requestDesign("/api/admin2714/site", { action: "save-draft", settings: settingsRef.current });
+        if (designRevisionRef.current === revision) { setDesignDirty(false); setStatus("Draft saved"); }
+      } catch { setStatus(navigator.onLine ? "Saving failed — changes remain local" : "Offline — changes remain local"); }
+    }, 1_500);
+    return () => window.clearTimeout(timer);
+  }, [designDirty, designTarget, siteSettings, saving]);
+
+  useEffect(() => {
     const receive = (event: MessageEvent) => {
       if (event.origin !== window.location.origin || event.data?.source !== "b28-visual-editor") return;
       if (event.data.type === "selected") { setSelectedElement(event.data.element as SelectedVisualElement); setStatus(`Editing ${event.data.element.tag} element`); }
       if (event.data.type === "ready") sendDesignState();
-      if (event.data.type === "shortcut") { if (event.data.action === "redo") redo(); else undo(); }
+      if (event.data.type === "shortcut") {
+        if (event.data.action === "redo") redo(); else if (event.data.action === "undo") undo(); else if (event.data.action === "save") void saveDesignDraft(); else if (event.data.action === "preview") setPreviewMode((mode) => mode === "site" ? "design" : "site"); else if (event.data.action === "copy" && selectedElement) { copiedElementRef.current = selectedElement; setStatus("Element copied"); } else if (event.data.action === "paste" && copiedElementRef.current) duplicateVisual(copiedElementRef.current); else if (event.data.action === "deselect") clearElement();
+      }
       if (event.data.type === "change") applyVisualPatch(event.data.element as SelectedVisualElement, event.data.patch as Partial<ElementOverride>);
       if (event.data.type === "action") { if (event.data.action === "duplicate") duplicateVisual(event.data.element as SelectedVisualElement); else deleteVisual(event.data.element as SelectedVisualElement); }
       if (event.data.type === "request-upload") requestUpload((path) => applyVisualPatch(event.data.element as SelectedVisualElement, event.data.field === "src" ? { src: path } : { styles: { "background-image": `url("${path}")`, "background-size": "cover", "background-position": "center" } }));
@@ -102,13 +155,19 @@ export function SiteBuilder({ initial, initialSettings }: { initial: ContentItem
     return () => window.removeEventListener("message", receive);
   // The dependencies below intentionally refresh the bridge whenever its history snapshot changes.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [designHistoryIndex, designTarget, previewPath, siteSettings]);
+  }, [designHistoryIndex, designTarget, previewPath, selectedElement, siteSettings]);
 
   useEffect(() => {
     const keyboard = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement;
       const typing = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target.isContentEditable;
-      if ((event.ctrlKey || event.metaKey) && event.key.toLocaleLowerCase() === "z") { event.preventDefault(); if (event.shiftKey) redo(); else undo(); }
+      const key = event.key.toLocaleLowerCase();
+      if ((event.ctrlKey || event.metaKey) && key === "z") { event.preventDefault(); if (event.shiftKey) redo(); else undo(); }
+      else if ((event.ctrlKey || event.metaKey) && key === "s") { event.preventDefault(); if (designTarget) void saveDesignDraft(); else if (draft) void save("draft"); }
+      else if ((event.ctrlKey || event.metaKey) && key === "p") { event.preventDefault(); setPreviewMode((mode) => mode === "site" ? "design" : "site"); }
+      else if (!typing && (event.ctrlKey || event.metaKey) && key === "c" && selectedElement) { event.preventDefault(); copiedElementRef.current = selectedElement; setStatus("Element copied"); }
+      else if (!typing && (event.ctrlKey || event.metaKey) && key === "v" && copiedElementRef.current) { event.preventDefault(); duplicateVisual(copiedElementRef.current); }
+      else if (event.key === "Escape") clearElement();
       else if (!typing && selectedElement && (event.key === "Delete" || event.key === "Backspace")) { event.preventDefault(); deleteVisual(selectedElement); }
     };
     window.addEventListener("keydown", keyboard);
@@ -149,14 +208,20 @@ export function SiteBuilder({ initial, initialSettings }: { initial: ContentItem
     commit({ ...draft, data: { ...draft.data, [key]: value } });
   }
 
+  function seoField(key: string, value: unknown) {
+    if (!draft) return;
+    const seo = draft.data.seo && typeof draft.data.seo === "object" ? draft.data.seo as Record<string, unknown> : {};
+    commit({ ...draft, data: { ...draft.data, seo: { ...seo, [key]: value } } });
+  }
+
   function commitDesign(next: SiteSettings, message = "Unsaved design changes") {
     const nextHistory = [...designHistoryRef.current.slice(0, designHistoryIndexRef.current + 1), next].slice(-100); const nextIndex = nextHistory.length - 1;
-    settingsRef.current = next; designHistoryRef.current = nextHistory; designHistoryIndexRef.current = nextIndex; setSiteSettings(next); setDesignHistory(nextHistory); setDesignHistoryIndex(nextIndex); setStatus(message);
+    designRevisionRef.current += 1; settingsRef.current = next; designHistoryRef.current = nextHistory; designHistoryIndexRef.current = nextIndex; setSiteSettings(next); setDesignHistory(nextHistory); setDesignHistoryIndex(nextIndex); setDesignDirty(true); setStatus(message);
   }
 
   function restoreDesign(index: number, message: string) {
     const next = designHistoryRef.current[index]; if (!next) return;
-    settingsRef.current = next; designHistoryIndexRef.current = index; setDesignHistoryIndex(index); setSiteSettings(next); sendDesignState(next); clearElement(); setStatus(message);
+    designRevisionRef.current += 1; settingsRef.current = next; designHistoryIndexRef.current = index; setDesignHistoryIndex(index); setSiteSettings(next); setDesignDirty(true); sendDesignState(next); clearElement(); setStatus(message);
   }
 
   function undo() {
@@ -236,7 +301,7 @@ export function SiteBuilder({ initial, initialSettings }: { initial: ContentItem
       const response = await fetch("/api/admin2714/media", { method: "POST", body: form });
       const result = await response.json() as { success: boolean; data?: { key: string }; error?: { message?: string } };
       if (!response.ok || !result.success || !result.data) throw new Error(result.error?.message || "Upload failed.");
-      uploadReceiver.current(result.data.key); setStatus("Media uploaded and selected");
+      uploadReceiver.current(result.data.key); setShowMedia(false); setStatus("Media uploaded and selected");
     } catch (error) { setStatus(error instanceof Error ? error.message : "Upload failed"); }
     finally { setSaving(false); if (uploadRef.current) uploadRef.current.value = ""; }
   }
@@ -245,30 +310,56 @@ export function SiteBuilder({ initial, initialSettings }: { initial: ContentItem
     setDraft(null); setSelectedElement(null); setDesignTarget(target); setPreviewPath(path); setPreviewMode("design"); setStatus(target === "global" ? "Editing global design" : `Editing ${target} page`);
   }
 
+  async function saveDesignDraft() {
+    setSaving(true); setStatus("Saving draft…"); const revision = designRevisionRef.current;
+    try {
+      await requestDesign("/api/admin2714/site", { action: "save-draft", settings: settingsRef.current });
+      if (designRevisionRef.current === revision) setDesignDirty(false); setStatus("Draft saved");
+    } catch (error) { setStatus(error instanceof Error ? `${error.message} Your changes remain local.` : "Saving failed — changes remain local"); }
+    finally { setSaving(false); }
+  }
+
   async function saveDesign() {
+    const changes = Math.max(1, designHistoryIndexRef.current); if (!window.confirm(`You are about to publish ${changes} design change${changes === 1 ? "" : "s"}. Continue?`)) return;
     setSaving(true); setStatus("Publishing design…");
     try {
-      const response = await fetch("/api/admin2714/site", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(siteSettings) });
-      const result = await response.json() as { success?: boolean; data?: SiteSettings; error?: { message?: string } };
-      if (!response.ok || !result.success) throw new Error(result.error?.message || "Design could not be saved.");
-      if (result.data) { settingsRef.current = result.data; designHistoryRef.current = [result.data]; designHistoryIndexRef.current = 0; setSiteSettings(result.data); setDesignHistory([result.data]); setDesignHistoryIndex(0); }
+      const result = await requestDesign("/api/admin2714/site", { action: "publish", settings: settingsRef.current });
+      if (result.data) { settingsRef.current = result.data; designHistoryRef.current = [result.data]; designHistoryIndexRef.current = 0; designRevisionRef.current = 0; setSiteSettings(result.data); setDesignHistory([result.data]); setDesignHistoryIndex(0); setDesignDirty(false); localStorage.removeItem("b28-site-design-draft"); }
       setPreviewKey((key) => key + 1); setStatus("Design published to the live site");
-    } catch (error) { setStatus(error instanceof Error ? error.message : "Design could not be saved."); }
+    } catch (error) { setStatus(`${error instanceof Error ? error.message : "Publishing failed."} Your draft is safe.`); }
     finally { setSaving(false); }
   }
 
   async function restoreLastSavedDesign() {
     setSaving(true); setStatus("Loading last saved design…");
     try {
-      const response = await fetch("/api/admin2714/site", { cache: "no-store" });
-      const result = await response.json() as { success?: boolean; data?: SiteSettings; error?: { message?: string } };
-      if (!response.ok || !result.success || !result.data) throw new Error(result.error?.message || "Last saved design could not be loaded.");
-      const saved = result.data; settingsRef.current = saved; designHistoryRef.current = [saved]; designHistoryIndexRef.current = 0; setSiteSettings(saved); setDesignHistory([saved]); setDesignHistoryIndex(0); sendDesignState(saved); clearElement(); setStatus("Restored the last saved design — no page reload");
+      const result = await requestDesign("/api/admin2714/site", { action: "discard-draft" });
+      if (!result.data) throw new Error("Last saved design could not be loaded.");
+      const saved = result.data; settingsRef.current = saved; designHistoryRef.current = [saved]; designHistoryIndexRef.current = 0; designRevisionRef.current = 0; setSiteSettings(saved); setDesignHistory([saved]); setDesignHistoryIndex(0); setDesignDirty(false); localStorage.removeItem("b28-site-design-draft"); sendDesignState(saved); clearElement(); setStatus("Restored the last published design — no page reload");
     } catch (error) { setStatus(error instanceof Error ? error.message : "Last saved design could not be loaded."); }
     finally { setSaving(false); }
   }
 
-  function requestUpload(receiver: (path: string) => void) { uploadReceiver.current = receiver; uploadRef.current?.click(); }
+  async function openDesignVersions() {
+    setShowVersions(true); setStatus("Loading design history…");
+    try { const response = await fetch("/api/admin2714/site/versions", { cache: "no-store" }); const result = await response.json() as { success?: boolean; data?: DesignVersion[]; error?: { message?: string } }; if (!response.ok || !result.success) throw new Error(result.error?.message || "Version history could not be loaded."); setDesignVersions(result.data || []); setStatus("Version history ready"); }
+    catch (error) { setStatus(error instanceof Error ? error.message : "Version history could not be loaded."); }
+  }
+
+  async function restoreDesignVersion(version: number) {
+    setSaving(true); setStatus(`Restoring version ${version} to draft…`);
+    try { const result = await requestDesign("/api/admin2714/site/versions", { version }); if (!result.data) throw new Error("Version could not be restored."); const restored = result.data; settingsRef.current = restored; designHistoryRef.current = [restored]; designHistoryIndexRef.current = 0; designRevisionRef.current = 0; setSiteSettings(restored); setDesignHistory([restored]); setDesignHistoryIndex(0); setDesignDirty(false); try { localStorage.removeItem("b28-site-design-draft"); } catch {} sendDesignState(restored); clearElement(); setShowVersions(false); setStatus(`Version ${version} restored as a safe draft`); }
+    catch (error) { setStatus(error instanceof Error ? error.message : "Version could not be restored."); }
+    finally { setSaving(false); }
+  }
+
+  async function loadMedia() {
+    try { const response = await fetch("/api/admin2714/media", { cache: "no-store" }); const result = await response.json() as { success?: boolean; data?: MediaItem[]; error?: { message?: string } }; if (!response.ok || !result.success) throw new Error(result.error?.message || "Media library could not be loaded."); setMediaItems(result.data || []); }
+    catch (error) { setStatus(error instanceof Error ? error.message : "Media library could not be loaded."); }
+  }
+  function requestUpload(receiver: (path: string) => void) { uploadReceiver.current = receiver; setShowMedia(true); void loadMedia(); }
+  function openMediaLibrary() { requestUpload((path) => { void navigator.clipboard?.writeText(path); setStatus("Media URL copied"); }); }
+  function chooseMedia(item: MediaItem) { uploadReceiver.current(item.storage_key); setShowMedia(false); setStatus(`${item.filename} selected`); }
   function applyElement(override: ElementOverride) { previewRef.current?.contentWindow?.postMessage({ source: "b28-builder", type: "apply", override }, window.location.origin); }
   function clearElement() { setSelectedElement(null); previewRef.current?.contentWindow?.postMessage({ source: "b28-builder", type: "select-clear" }, window.location.origin); }
   function sendDesignState(settings: SiteSettings = settingsRef.current) { previewRef.current?.contentWindow?.postMessage({ source: "b28-builder", type: "state", path: previewPath, overrides: settings.elementOverrides, items: settings.customElements }, window.location.origin); }
@@ -297,14 +388,17 @@ export function SiteBuilder({ initial, initialSettings }: { initial: ContentItem
     <header className="builder-toolbar">
       <div className="builder-brand"><Link href="/" aria-label="Return to public site"><ArrowLeft size={17}/></Link><span className="builder-logo">B28</span><div><strong>Website Builder</strong><small>{status}</small></div></div>
       <div className="builder-toolbar-center"><button className={previewMode === "design" ? "active" : ""} onClick={() => setPreviewMode("design")} disabled={!draft && !designTarget}>Design</button><button className={previewMode === "site" ? "active" : ""} onClick={() => setPreviewMode("site")}>Live site</button><span className="builder-divider"/><button aria-label="Desktop preview" className={viewport === "desktop" ? "active" : ""} onClick={() => setViewport("desktop")}><Monitor size={16}/></button><button aria-label="Tablet preview" className={viewport === "tablet" ? "active" : ""} onClick={() => setViewport("tablet")}><Laptop size={16}/></button><button aria-label="Mobile preview" className={viewport === "mobile" ? "active" : ""} onClick={() => setViewport("mobile")}><Smartphone size={16}/></button></div>
-      <div className="builder-toolbar-actions"><button aria-label="Undo" onClick={undo} disabled={designTarget ? designHistoryIndex <= 0 : !draft || historyIndex <= 0}><Undo2 size={16}/></button><button aria-label="Redo" onClick={redo} disabled={designTarget ? designHistoryIndex >= designHistory.length - 1 : !draft || historyIndex >= history.length - 1}><Redo2 size={16}/></button>{designTarget ? <><button onClick={() => void restoreLastSavedDesign()} disabled={saving} title="Discard unsaved design changes and return to the persisted version"><RotateCcw size={15}/> Back to last saved</button><button className="primary" onClick={() => void saveDesign()} disabled={saving}><Send size={15}/> Publish design</button></> : <><button onClick={() => void save("draft")} disabled={!draft || saving}><Save size={15}/> Draft</button><button className="primary" onClick={() => void save("published")} disabled={!draft || saving}><Send size={15}/> Publish</button></>}</div>
+      <div className="builder-toolbar-actions"><button aria-label="Undo" onClick={undo} disabled={designTarget ? designHistoryIndex <= 0 : !draft || historyIndex <= 0}><Undo2 size={16}/></button><button aria-label="Redo" onClick={redo} disabled={designTarget ? designHistoryIndex >= designHistory.length - 1 : !draft || historyIndex >= history.length - 1}><Redo2 size={16}/></button>{designTarget ? <><button onClick={() => void openDesignVersions()} disabled={saving} title="Open version history"><Clock3 size={15}/> Versions</button><button onClick={() => void restoreLastSavedDesign()} disabled={saving} title="Discard the design draft and return to the published version"><RotateCcw size={15}/> Back to last saved</button><button onClick={() => void saveDesignDraft()} disabled={saving || !designDirty}><Save size={15}/> Save draft</button><button className="primary" onClick={() => void saveDesign()} disabled={saving}><Send size={15}/> Publish changes</button></> : <><button onClick={() => void save("draft")} disabled={!draft || saving}><Save size={15}/> Draft</button><button className="primary" onClick={() => void save("published")} disabled={!draft || saving}><Send size={15}/> Publish</button></>}</div>
     </header>
+    {localRecovery && <section className="builder-version-panel" role="dialog" aria-modal="true" aria-label="Recover browser draft"><div className="builder-version-card"><header><div><small>Draft recovery</small><h2>Unsaved browser changes found</h2><p>Recover these changes into the editor, or keep the version loaded from the server. Publishing remains a separate step.</p></div></header><div className="builder-media-tools"><button onClick={() => { commitDesign(localRecovery, "Browser draft recovered — review before publishing"); editDesign("home"); sendDesignState(localRecovery); setLocalRecovery(null); }}>Recover browser draft</button><button onClick={() => { try { localStorage.removeItem("b28-site-design-draft"); } catch {} setLocalRecovery(null); }}>Keep server version</button></div></div></section>}
+    {showVersions && <section className="builder-version-panel" role="dialog" aria-modal="true" aria-label="Site design version history"><div className="builder-version-card"><header><div><small>Site recovery</small><h2>Version history</h2><p>Restoring creates a draft. The live website stays unchanged until you publish.</p></div><button aria-label="Close version history" onClick={() => setShowVersions(false)}><X size={18}/></button></header><div>{designVersions.length ? designVersions.map((version) => <article key={version.id}><span><strong>Version {version.version}</strong><small>{version.createdAt ? new Date(version.createdAt).toLocaleString() : "Unknown date"} · {version.author}</small><small>{version.summary}</small></span><button onClick={() => void restoreDesignVersion(version.version)} disabled={saving}>Restore to draft</button></article>) : <p>No design snapshots yet. A snapshot is created automatically before every publish.</p>}</div></div></section>}
+    {showMedia && <section className="builder-version-panel" role="dialog" aria-modal="true" aria-label="Media library"><div className="builder-version-card builder-media-library"><header><div><small>Assets</small><h2>Media library</h2><p>Choose an existing asset or upload a new image or video.</p></div><button aria-label="Close media library" onClick={() => setShowMedia(false)}><X size={18}/></button></header><div className="builder-media-tools"><label className="builder-search"><Search size={14}/><input value={mediaQuery} onChange={(event) => setMediaQuery(event.target.value)} placeholder="Search media"/></label><button onClick={() => uploadRef.current?.click()}><Upload size={15}/> Upload new</button></div><div className="builder-media-grid">{visibleMedia.map((item) => <button key={item.id} onClick={() => chooseMedia(item)} title={`Use ${item.filename}`}>{item.mime_type.startsWith("image/") ? <span className="builder-media-thumb" role="img" aria-label={item.alt_text || item.title || item.filename} style={{ backgroundImage: `url("${item.storage_key.replace(/["\\]/g, "")}")` }}/> : <span className="builder-media-file"><FileText size={28}/>{item.mime_type}</span>}<span><strong>{item.title || item.filename}</strong><small>{Math.max(1, Math.round(item.size / 1024))} KB</small></span></button>)}{!visibleMedia.length && <p>No matching media. Upload an asset to begin.</p>}</div></div></section>}
     <input ref={uploadRef} className="sr-only" type="file" accept="image/*,video/mp4,video/webm" onChange={(event) => { const file = event.target.files?.[0]; if (file) void upload(file); }}/>
 
     <aside className="builder-left">
       <div className="builder-side-heading"><div><small>Website</small><strong>Pages & content</strong></div><button aria-label="Add content" onClick={() => setShowCreate(!showCreate)}><Plus size={17}/></button></div>
       {showCreate && <div className="builder-create-menu">{(Object.keys(typeLabels) as ContentType[]).map((type) => <button key={type} onClick={() => create(type)}><strong>{typeLabels[type]}</strong><span>{typeDescriptions[type]}</span></button>)}</div>}
-      <nav className="builder-public-pages" aria-label="Public pages"><button className={designTarget === "global" ? "active" : ""} onClick={() => editDesign("global")}><FileText size={15}/><span>Global design</span><small>all pages</small></button>{publicPages.map(([key, label, path]) => <button key={path} className={designTarget === key ? "active" : ""} onClick={() => editDesign(key, path)}><FileText size={15}/><span>{label}</span><small>{path}</small></button>)}</nav>
+      <nav className="builder-public-pages" aria-label="Public pages"><button className={designTarget === "global" ? "active" : ""} onClick={() => editDesign("global")}><FileText size={15}/><span>Global design</span><small>all pages</small></button>{publicPages.map(([key, label, path]) => <button key={path} className={designTarget === key ? "active" : ""} onClick={() => editDesign(key, path)}><FileText size={15}/><span>{label}</span><small>{path}</small></button>)}<button onClick={openMediaLibrary}><Images size={15}/><span>Media library</span><small>images & video</small></button></nav>
       <div className="builder-library-heading"><strong>Managed content</strong><span>{items.length}</span></div>
       <label className="builder-search"><Search size={14}/><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search"/></label>
       <div className="builder-filter">{(["all", "page", "project", "article", "service", "team"] as const).map((type) => <button className={filter === type ? "active" : ""} key={type} onClick={() => setFilter(type)}>{type === "all" ? "All" : typeLabels[type]}</button>)}</div>
@@ -313,7 +407,7 @@ export function SiteBuilder({ initial, initialSettings }: { initial: ContentItem
 
     <main className="builder-canvas">
       <div className={`builder-device ${viewport}`}>
-        {previewMode === "site" ? <iframe ref={previewRef} key={`${previewPath}-${previewKey}`} src={previewPath} title={`Preview of ${previewPath}`}/> : designTarget ? <iframe ref={previewRef} key={`editor-${previewPath}-${previewKey}`} src={`${previewPath}${previewPath.includes("?") ? "&" : "?"}visual-editor=1`} title={`Visual editor for ${previewPath}`}/> : draft ? <DraftPreview draft={draft}/> : <div className="builder-empty"><FileText size={32}/><h2>Select something to edit</h2><p>Choose a page or content item from the left, or create a new one.</p></div>}
+        {previewMode === "site" ? <iframe ref={previewRef} key={`${previewPath}-${previewKey}`} src={`${previewPath}${safeMode ? `${previewPath.includes("?") ? "&" : "?"}safe=1` : ""}`} title={`Preview of ${previewPath}`}/> : designTarget ? <iframe ref={previewRef} key={`editor-${previewPath}-${previewKey}`} src={`${previewPath}${previewPath.includes("?") ? "&" : "?"}visual-editor=1${safeMode ? "&safe=1" : ""}`} title={`Visual editor for ${previewPath}`}/> : draft ? <DraftPreview draft={draft}/> : <div className="builder-empty"><FileText size={32}/><h2>Select something to edit</h2><p>Choose a page or content item from the left, or create a new one.</p></div>}
       </div>
     </main>
 
@@ -329,6 +423,7 @@ export function SiteBuilder({ initial, initialSettings }: { initial: ContentItem
           <label>Main content<textarea className="builder-body-input" value={draft.body} onChange={(event) => field("body", event.target.value)} placeholder="Write the main story here…"/></label>
           <label>Cover image<div className="builder-media-field"><input value={draft.coverImage} onChange={(event) => field("coverImage", event.target.value)} placeholder="/media/image.jpg"/><button type="button" onClick={() => requestUpload((path) => field("coverImage", path))}><Upload size={14}/></button></div></label>
           <TypeFields draft={draft} setData={dataField}/>
+          <details className="builder-seo-panel"><summary>SEO & social sharing</summary><div className="builder-type-fields"><label>SEO title<input value={String((draft.data.seo as Record<string, unknown> | undefined)?.title || "")} onChange={(event) => seoField("title", event.target.value)} placeholder={draft.title || "Automatic from title"}/></label><label className="wide">SEO description<textarea value={String((draft.data.seo as Record<string, unknown> | undefined)?.description || "")} onChange={(event) => seoField("description", event.target.value)} placeholder={draft.excerpt || "Automatic from description"}/></label><label className="wide">Canonical URL<input value={String((draft.data.seo as Record<string, unknown> | undefined)?.canonical || "")} onChange={(event) => seoField("canonical", event.target.value)} placeholder="https://example.com/page"/></label><label className="wide">Social image<div className="builder-media-field"><input value={String((draft.data.seo as Record<string, unknown> | undefined)?.socialImage || "")} onChange={(event) => seoField("socialImage", event.target.value)} placeholder="Uses cover image when empty"/><button type="button" onClick={() => requestUpload((path) => seoField("socialImage", path))}><Upload size={14}/></button></div></label><label className="builder-check wide"><input type="checkbox" checked={(draft.data.seo as Record<string, unknown> | undefined)?.index !== false} onChange={(event) => seoField("index", event.target.checked)}/> Allow search engines to index this page</label></div></details>
           <label className="builder-check"><input type="checkbox" checked={draft.featured} onChange={(event) => field("featured", event.target.checked)}/> Feature this item prominently</label>
         </div>
         <div className="builder-blocks"><div className="builder-section-title"><div><small>Layout</small><strong>Content blocks</strong></div></div><div className="builder-block-palette">{(["text", "image", "quote", "video", "cta", "gallery", "stats", "timeline"] as ContentBlock["type"][]).map((type) => <button key={type} onClick={() => addBlock(type)}><Plus size={12}/>{blockLabel(type)}</button>)}</div>{draft.blocks.map((block, index) => <BlockEditor key={block.id} block={block} index={index} count={draft.blocks.length} update={(data) => updateBlock(block.id, { data: { ...block.data, ...data } })} move={moveBlock} remove={() => removeBlock(block.id)} upload={requestUpload}/>)}</div>

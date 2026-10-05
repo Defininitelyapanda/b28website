@@ -11,7 +11,7 @@ export async function POST() {
     const store = await readStore();
     const stamp = new Date().toISOString();
     const id = `backup_${crypto.randomUUID()}`;
-    const payload = JSON.stringify({ version: 1, createdAt: stamp, content: store.content, settings: store.settings, navigation: store.navigation });
+    const payload = JSON.stringify({ version: 2, createdAt: stamp, content: store.content, drafts: store.drafts, settings: store.settings, navigation: store.navigation });
     const checksum = createHash("sha256").update(payload).digest("hex");
     await storeBackup(id, payload);
     await updateStore((current) => { current.backups.push({ id, status: "verified", size: Buffer.byteLength(payload), checksum, created_by: STUDIO_USER_ID, created_at: stamp }); });
