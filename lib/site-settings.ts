@@ -1,8 +1,9 @@
 export type SitePageKey = "home" | "work" | "about" | "services" | "journal" | "contact";
 
 export type ElementStyles = Record<string, string>;
-export type ElementOverride = { id: string; path: string; selector: string; tag: string; text?: string; src?: string; href?: string; alt?: string; hidden?: boolean; styles: ElementStyles };
-export type CustomElement = { id: string; path: string; type: "text" | "heading" | "image" | "button" | "embed" | "divider" | "spacer"; content: string; src: string; href: string; order: number; anchorSelector?: string; placement?: "before" | "after" | "inside"; styles: ElementStyles };
+export type ElementOverride = { id: string; path: string; selector: string; tag: string; text?: string; src?: string; href?: string; alt?: string; hidden?: boolean; locked?: boolean; styles: ElementStyles };
+export type LayoutCard = { image: string; heading: string; body: string };
+export type CustomElement = { id: string; path: string; type: "text" | "heading" | "image" | "button" | "embed" | "divider" | "spacer" | "section" | "header" | "footer" | "gallery"; content: string; src: string; href: string; order: number; anchorSelector?: string; placement?: "before" | "after" | "inside"; columns?: number; cards?: LayoutCard[]; styles: ElementStyles };
 
 export type PageDesign = {
   kicker: string;
@@ -20,6 +21,7 @@ export type PageDesign = {
 };
 
 export type SiteSettings = {
+  navigationLinks?: Array<{ label: string; href: string }>;
   brandName: string;
   shortName: string;
   tagline: string;
@@ -115,8 +117,8 @@ function number(value: unknown, fallback: number, minimum: number, maximum: numb
 
 export function normalizeSiteSettings(input?: Partial<SiteSettings> | null): SiteSettings {
   const source = input || {};
-  const elementOverrides = Array.isArray(source.elementOverrides) ? source.elementOverrides.slice(0, 2_000).map((entry, index) => ({ id: text(entry?.id, `element-${index}`, 120), path: text(entry?.path, "/", 300), selector: text(entry?.selector, "", 1_000), tag: text(entry?.tag, "div", 30), text: entry?.text === undefined ? undefined : text(entry.text, "", 20_000), src: entry?.src === undefined ? undefined : text(entry.src, "", 2_000), href: entry?.href === undefined ? undefined : text(entry.href, "", 2_000), alt: entry?.alt === undefined ? undefined : text(entry.alt, "", 1_000), hidden: Boolean(entry?.hidden), styles: Object.fromEntries(Object.entries(entry?.styles || {}).slice(0, 100).map(([key, value]) => [text(key, "", 80), text(value, "", 500)])) })) : [];
-  const customElements = Array.isArray(source.customElements) ? source.customElements.slice(0, 1_000).map((entry, index) => ({ id: text(entry?.id, `custom-${index}`, 120), path: text(entry?.path, "/", 300), type: (["text", "heading", "image", "button", "embed", "divider", "spacer"] as const).includes(entry?.type as never) ? entry.type : "text", content: text(entry?.content, "", 20_000), src: text(entry?.src, "", 2_000), href: text(entry?.href, "", 2_000), order: number(entry?.order, index, 0, 10_000), anchorSelector: entry?.anchorSelector ? text(entry.anchorSelector, "", 1_000) : undefined, placement: (["before", "after", "inside"] as const).includes(entry?.placement as never) ? entry.placement : undefined, styles: Object.fromEntries(Object.entries(entry?.styles || {}).slice(0, 100).map(([key, value]) => [text(key, "", 80), text(value, "", 500)])) })) : [];
+  const elementOverrides = Array.isArray(source.elementOverrides) ? source.elementOverrides.slice(0, 2_000).map((entry, index) => ({ id: text(entry?.id, `element-${index}`, 120), path: text(entry?.path, "/", 300), selector: text(entry?.selector, "", 1_000), tag: text(entry?.tag, "div", 30), text: entry?.text === undefined ? undefined : text(entry.text, "", 20_000), src: entry?.src === undefined ? undefined : text(entry.src, "", 2_000), href: entry?.href === undefined ? undefined : text(entry.href, "", 2_000), alt: entry?.alt === undefined ? undefined : text(entry.alt, "", 1_000), hidden: Boolean(entry?.hidden), locked: Boolean(entry?.locked), styles: Object.fromEntries(Object.entries(entry?.styles || {}).slice(0, 100).map(([key, value]) => [text(key, "", 80), text(value, "", 500)])) })) : [];
+  const customElements = Array.isArray(source.customElements) ? source.customElements.slice(0, 1_000).map((entry, index) => ({ id: text(entry?.id, `custom-${index}`, 120), path: text(entry?.path, "/", 300), type: (["text", "heading", "image", "button", "embed", "divider", "spacer", "section", "header", "footer", "gallery"] as const).includes(entry?.type as never) ? entry.type : "text", content: text(entry?.content, "", 20_000), src: text(entry?.src, "", 2_000), href: text(entry?.href, "", 2_000), order: number(entry?.order, index, 0, 10_000), anchorSelector: entry?.anchorSelector ? text(entry.anchorSelector, "", 1_000) : undefined, placement: (["before", "after", "inside"] as const).includes(entry?.placement as never) ? entry.placement : undefined, columns: number(entry?.columns, 1, 1, 5), cards: Array.isArray(entry?.cards) ? entry.cards.slice(0, 5).map((card) => ({ image: text(card.image, "", 2000), heading: text(card.heading, "", 1000), body: text(card.body, "", 20000) })) : undefined, styles: Object.fromEntries(Object.entries(entry?.styles || {}).slice(0, 100).map(([key, value]) => [text(key, "", 80), text(value, "", 500)])) })) : [];
   const pages = {} as Record<SitePageKey, PageDesign>;
   for (const key of Object.keys(DEFAULT_SITE_SETTINGS.pages) as SitePageKey[]) {
     const fallback = DEFAULT_SITE_SETTINGS.pages[key];
@@ -141,6 +143,7 @@ export function normalizeSiteSettings(input?: Partial<SiteSettings> | null): Sit
   return {
     ...DEFAULT_SITE_SETTINGS,
     ...source,
+    navigationLinks: Array.isArray(source.navigationLinks) ? source.navigationLinks.slice(0, 100).map((link) => ({ label: text(link.label, "", 120), href: text(link.href, "", 2000) })).filter((link) => !/^\s*(?:javascript|data|vbscript):/i.test(link.href)) : [],
     brandName: text(source.brandName, DEFAULT_SITE_SETTINGS.brandName, 120),
     shortName: text(source.shortName, DEFAULT_SITE_SETTINGS.shortName, 40),
     tagline: text(source.tagline, DEFAULT_SITE_SETTINGS.tagline, 300),

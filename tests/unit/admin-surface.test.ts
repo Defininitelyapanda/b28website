@@ -89,7 +89,7 @@ test("visual editor supports inline controls, history shortcuts, anchored elemen
   assert.match(runtime, /visual-resize-handle/);
   assert.match(runtime, /restoreElements\(snapshots\)/);
   assert.match(runtime, /action: event\.shiftKey \? "redo" : "undo"/);
-  assert.match(runtime, /anchor\.after\(node\)/);
+  assert.match(runtime, /previous\.after\(node\)/);
   assert.match(inspector, /Video \/ embed/);
   assert.match(inspector, /Background image/);
   assert.match(config, /frame-src 'self' https:/);

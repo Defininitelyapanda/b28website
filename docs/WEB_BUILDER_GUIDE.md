@@ -32,6 +32,16 @@ Image fields include an upload button. Uploaded files use persistent R2 storage 
 
 ## Global design and navigation
 
+## Insert and transform controls
+
+Open Insert in the workspace bar. Select the target area and choose before, after, or inside. The panel provides text, headings, images, video embeds, links/buttons, divider lines, bordered sections, spacers, headers, footers, and navigation tabs. Image layouts support one through five images, with optional editable heading and body text for each image. Select each image to replace it independently through the media library. Layouts adapt to smaller screens.
+
+Drag a selected image or non-text component to move it, or use its move handle. Left/right edge handles adjust width; top/bottom handles adjust height; corner handles adjust both. The round handle rotates the component; hold Shift to snap rotation to 15 degrees. Pointer release ends the transform, while cancellation or loss of window focus restores the starting position. Properties also offers precise width, height, and rotation fields.
+
+Lock/Unlock is available on the selection toolbar and Properties panel. Locking prevents direct editing, moving, resizing, and deleting; a locked container also protects its children. Lock state is saved with the design. Ctrl/Cmd+A selects text only within an active text field; for a selected area it marks that area's components, and without a selection it marks the site's components individually. Builder controls are excluded. Delete removes the marked unlocked components in one undoable design operation.
+
+## Global appearance
+
 Global design controls identity, logo, navigation labels, primary action, site colors, typography, layout width, corner radius, spacing, footer identity, social links, and trusted-admin CSS. Page design controls each page hero, background, introduction, section copy, and imagery.
 
 ## Keyboard shortcuts

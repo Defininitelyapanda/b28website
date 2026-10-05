@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, ChevronDown, ChevronUp, Clock3, Copy, ExternalLink, FileText, Images, Laptop, Monitor, PanelLeft, PanelRight, Maximize2, Plus, Redo2, RotateCcw, Save, Search, Send, Smartphone, Trash2, Undo2, Upload, X } from "lucide-react";
 import "./workspace.css";
+import { InsertPanel } from "./insert-panel";
 import type { ContentBlock, ContentItem, ContentStatus, ContentType } from "@/lib/cms-types";
 import { contentPath } from "@/lib/content-url";
 import { DEFAULT_SITE_SETTINGS, normalizeSiteSettings, type CustomElement, type ElementOverride, type SitePageKey, type SiteSettings } from "@/lib/site-settings";
@@ -68,6 +69,7 @@ export function SiteBuilder({ initial, initialSettings, recoveredDesignDraft = f
   const [previewMode, setPreviewMode] = useState<PreviewMode>("design");
   const [showPages, setShowPages] = useState(true);
   const [showInspector, setShowInspector] = useState(false);
+  const [toolTab, setToolTab] = useState<"insert" | "properties">("insert");
   const [previewPath, setPreviewPath] = useState("/");
   const [previewKey, setPreviewKey] = useState(0);
   const [status, setStatus] = useState(safeMode ? "Safe mode — embeds and motion disabled" : recoveredDesignDraft ? "Recovered saved design draft" : "Ready");
@@ -161,12 +163,13 @@ export function SiteBuilder({ initial, initialSettings, recoveredDesignDraft = f
     const receive = (event: MessageEvent) => {
       if (event.source !== previewRef.current?.contentWindow || event.origin !== window.location.origin || event.data?.source !== "b28-visual-editor") return;
       if (event.data.type === "selected") { setSelectedElement(event.data.element as SelectedVisualElement); setStatus(`Editing ${event.data.element.tag} element`); }
+      if (event.data.type === "selection") setStatus(`${event.data.elements.length} components selected in the canvas`);
       if (event.data.type === "ready") sendDesignState();
       if (event.data.type === "shortcut") {
         if (event.data.action === "redo") redo(); else if (event.data.action === "undo") undo(); else if (event.data.action === "save") void saveDesignDraft(); else if (event.data.action === "preview") setPreviewMode((mode) => mode === "site" ? "design" : "site"); else if (event.data.action === "copy" && selectedElement) { copiedElementRef.current = selectedElement; setStatus("Element copied"); } else if (event.data.action === "paste" && copiedElementRef.current) duplicateVisual(copiedElementRef.current); else if (event.data.action === "deselect") clearElement();
       }
       if (event.data.type === "change") applyVisualPatch(event.data.element as SelectedVisualElement, event.data.patch as Partial<ElementOverride>);
-      if (event.data.type === "action") { if (event.data.action === "duplicate") duplicateVisual(event.data.element as SelectedVisualElement); else deleteVisual(event.data.element as SelectedVisualElement); }
+      if (event.data.type === "action") { if (event.data.action === "delete-selection") deleteVisualSelection(event.data.elements as SelectedVisualElement[]); else if (event.data.action === "duplicate") duplicateVisual(event.data.element as SelectedVisualElement); else deleteVisual(event.data.element as SelectedVisualElement); }
       if (event.data.type === "request-upload") requestUpload((path) => applyVisualPatch(event.data.element as SelectedVisualElement, event.data.field === "src" ? { src: path } : { styles: { "background-image": `url("${path}")`, "background-size": "cover", "background-position": "center" } }));
     };
     window.addEventListener("message", receive);
@@ -180,6 +183,7 @@ export function SiteBuilder({ initial, initialSettings, recoveredDesignDraft = f
       const target = event.target as HTMLElement;
       const typing = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target.isContentEditable;
       const key = event.key.toLocaleLowerCase();
+      if (!typing && (event.ctrlKey || event.metaKey) && key === "a") { event.preventDefault(); previewRef.current?.contentWindow?.postMessage({ source: "b28-builder", type: "select-all" }, window.location.origin); return; }
       if ((event.ctrlKey || event.metaKey) && key === "z") { event.preventDefault(); if (event.shiftKey) redo(); else undo(); }
       else if ((event.ctrlKey || event.metaKey) && key === "s") { event.preventDefault(); if (designTarget) void saveDesignDraft(); else if (draft) void save("draft"); }
       else if ((event.ctrlKey || event.metaKey) && key === "p") { event.preventDefault(); setPreviewMode((mode) => mode === "site" ? "design" : "site"); }
@@ -385,21 +389,43 @@ export function SiteBuilder({ initial, initialSettings, recoveredDesignDraft = f
   function applyVisualPatch(element: SelectedVisualElement, patch: Partial<ElementOverride>) {
     const current = settingsRef.current;
     const existing = current.elementOverrides.find((item) => item.path === element.path && item.selector === element.selector);
+    if ((existing?.locked || element.locked) && patch.locked !== false) return;
     const override: ElementOverride = { id: existing?.id || crypto.randomUUID(), path: element.path, selector: element.selector, tag: element.tag, ...existing, ...patch, styles: { ...(existing?.styles || {}), ...(patch.styles || {}) } };
     const next = { ...current, elementOverrides: [...current.elementOverrides.filter((item) => !(item.path === element.path && item.selector === element.selector)), override] };
     commitDesign(next, "Unsaved element changes"); applyElement(override);
   }
   function duplicateVisual(element: SelectedVisualElement) {
     const current = settingsRef.current;
+    const root = current.customElements.find((item) => element.selector === `[data-edit-id="custom-${item.id}"]`);
+    if (root) {
+      const copy = { ...root, id: crypto.randomUUID(), anchorSelector: element.selector, placement: "after" as const, order: current.customElements.filter((entry) => entry.path === element.path).length };
+      const overrides = current.elementOverrides.filter((entry) => entry.path === element.path && entry.selector.includes(`custom-${root.id}`)).map((entry) => ({ ...entry, id: crypto.randomUUID(), locked: false, selector: entry.selector.replace(`custom-${root.id}`, `custom-${copy.id}`) }));
+      updateElementSettings({ ...current, customElements: [...current.customElements, copy], elementOverrides: [...current.elementOverrides, ...overrides] }); sendDesignState(settingsRef.current); return;
+    }
     const type = element.tag === "img" ? "image" : element.tag === "iframe" ? "embed" : /^h[1-6]$/.test(element.tag) ? "heading" : element.tag === "a" || element.tag === "button" ? "button" : "text";
     const item: CustomElement = { id: crypto.randomUUID(), path: element.path, type, content: element.text, src: element.src, href: element.href, order: current.customElements.filter((entry) => entry.path === element.path).length, anchorSelector: element.selector, placement: "after", styles: {} };
     updateElementSettings({ ...current, customElements: [...current.customElements, item] });
   }
   function deleteVisual(element: SelectedVisualElement) {
-    const current = settingsRef.current; const match = element.selector.match(/custom-([^"\]]+)/);
-    if (match) updateElementSettings({ ...current, customElements: current.customElements.filter((item) => item.id !== match[1]) });
+    if (element.locked) return;
+    const current = settingsRef.current; const root = current.customElements.find((item) => element.selector === `[data-edit-id="custom-${item.id}"]`);
+    if (root) updateElementSettings({ ...current, customElements: current.customElements.filter((item) => item.id !== root.id) });
     else applyVisualPatch(element, { hidden: true });
     clearElement();
+  }
+
+  function deleteVisualSelection(elements: SelectedVisualElement[]) {
+    const current = settingsRef.current;
+    const unlocked = elements.filter((element) => !element.locked);
+    const roots = new Set(current.customElements.filter((item) => unlocked.some((element) => element.selector === `[data-edit-id="custom-${item.id}"]`)).map((item) => item.id));
+    const overrides = [...current.elementOverrides];
+    for (const element of unlocked) {
+      const index = overrides.findIndex((item) => item.path === element.path && item.selector === element.selector);
+      if (index >= 0) { if (!overrides[index].locked) overrides[index] = { ...overrides[index], hidden: true }; }
+      else overrides.push({ id: crypto.randomUUID(), path: element.path, selector: element.selector, tag: element.tag, styles: {}, hidden: true });
+    }
+    const next = { ...current, customElements: current.customElements.filter((item) => !roots.has(item.id)), elementOverrides: overrides };
+    commitDesign(next, `Removed ${unlocked.length} selected components`); sendDesignState(next); clearElement();
   }
 
   return <div className="builder-shell">
@@ -409,7 +435,7 @@ export function SiteBuilder({ initial, initialSettings, recoveredDesignDraft = f
       <div className="builder-toolbar-actions"><button aria-label="Undo" title="Undo (Ctrl+Z)" onClick={undo} disabled={designTarget ? designHistoryIndex <= 0 : !draft || historyIndex <= 0}><Undo2 size={16}/></button><button aria-label="Redo" title="Redo (Ctrl+Shift+Z)" onClick={redo} disabled={designTarget ? designHistoryIndex >= designHistory.length - 1 : !draft || historyIndex >= history.length - 1}><Redo2 size={16}/></button>{designTarget ? <><button onClick={() => void openDesignVersions()} disabled={saving} title="Version history"><Clock3 size={15}/><span>History</span></button><button onClick={() => void restoreLastSavedDesign()} disabled={saving} title="Back to last saved"><RotateCcw size={15}/><span>Restore</span></button><button onClick={() => void saveDesignDraft()} disabled={saving || !designDirty}><Save size={15}/><span>Save draft</span></button><button className="primary" onClick={() => void saveDesign()} disabled={saving}><Send size={15}/><span>Publish changes</span></button></> : <><button onClick={() => void save("draft")} disabled={!draft || saving}><Save size={15}/><span>Save draft</span></button><button className="primary" onClick={() => void save("published")} disabled={!draft || saving}><Send size={15}/><span>Publish</span></button></>}</div>
     </header>
     <div className="builder-workspace-bar">
-      <div className="builder-panel-controls"><button aria-controls="builder-pages" aria-expanded={showPages} className={showPages ? "active" : ""} onClick={() => setShowPages((value) => !value)} title="Toggle pages sidebar"><PanelLeft size={17}/><span>Pages</span></button><button aria-controls="builder-properties" aria-expanded={showInspector} className={showInspector ? "active" : ""} onClick={() => setShowInspector((value) => !value)} title="Toggle properties sidebar"><PanelRight size={17}/><span>Properties</span></button><button onClick={() => { const hide = showPages || showInspector; setShowPages(!hide); setShowInspector(!hide); }} title="Show or hide both sidebars"><Maximize2 size={16}/><span>Focus canvas</span></button></div>
+      <div className="builder-panel-controls"><button onClick={() => previewRef.current?.contentWindow?.postMessage({ source: "b28-builder", type: "select-all" }, window.location.origin)} title="Select all in the current area (Ctrl+A)"><FileText size={16}/><span>Select all</span></button><button className={showInspector && toolTab === "insert" ? "active" : ""} onClick={() => { setToolTab("insert"); setShowInspector(true); setPreviewMode("design"); if (!designTarget) editDesign("home"); }}><Plus size={17}/><span>Insert</span></button><button aria-controls="builder-pages" aria-expanded={showPages} className={showPages ? "active" : ""} onClick={() => setShowPages((value) => !value)} title="Toggle pages sidebar"><PanelLeft size={17}/><span>Pages</span></button><button aria-controls="builder-properties" aria-expanded={showInspector} className={showInspector ? "active" : ""} onClick={() => { setToolTab("properties"); setShowInspector((value) => toolTab === "properties" ? !value : true); }} title="Toggle properties sidebar"><PanelRight size={17}/><span>Properties</span></button><button onClick={() => { const hide = showPages || showInspector; setShowPages(!hide); setShowInspector(!hide); }} title="Show or hide both sidebars"><Maximize2 size={16}/><span>Focus canvas</span></button></div>
       <div className="builder-toolbar-center"><button className={previewMode === "design" ? "active" : ""} onClick={() => setPreviewMode("design")}>Edit</button><button className={previewMode === "site" ? "active" : ""} onClick={() => setPreviewMode("site")}>Live site</button><span className="builder-divider"/><button aria-label="Desktop preview" className={viewport === "desktop" ? "active" : ""} onClick={() => setViewport("desktop")}><Monitor size={16}/></button><button aria-label="Tablet preview" className={viewport === "tablet" ? "active" : ""} onClick={() => setViewport("tablet")}><Laptop size={16}/></button><button aria-label="Mobile preview" className={viewport === "mobile" ? "active" : ""} onClick={() => setViewport("mobile")}><Smartphone size={16}/></button></div>
       <span className="builder-canvas-note">{viewport === "desktop" ? "Browser width · 1:1" : viewport === "tablet" ? "820 × 1180 · 1:1" : "390 × 844 · 1:1"}</span>
     </div>
@@ -435,7 +461,10 @@ export function SiteBuilder({ initial, initialSettings, recoveredDesignDraft = f
     </main>
 
     <aside className="builder-inspector" id="builder-properties" hidden={!showInspector} aria-label="Selection properties">
-      <div className="builder-panel-heading"><strong>Properties</strong><button aria-label="Hide properties sidebar" onClick={() => setShowInspector(false)}><X size={16}/></button></div>
+      <div className="builder-panel-heading"><strong>{toolTab === "insert" ? "Insert components" : "Properties"}</strong><button aria-label="Hide tools sidebar" onClick={() => setShowInspector(false)}><X size={16}/></button></div>
+      <div className="builder-panel-tabs"><button className={toolTab === "insert" ? "active" : ""} onClick={() => setToolTab("insert")}>Insert</button><button className={toolTab === "properties" ? "active" : ""} onClick={() => setToolTab("properties")}>Properties</button></div>
+      {toolTab === "insert" && <InsertPanel settings={siteSettings} path={previewPath} selected={selectedElement} onChange={(next) => { updateElementSettings(next); if (next.navigationLinks !== siteSettings.navigationLinks) sendDesignState(next); }} onMedia={requestUpload} onPage={() => { setToolTab("properties"); create("page"); }} onBackground={(styles) => { if (selectedElement) applyVisualPatch(selectedElement, { styles }); }}/>}
+      <div hidden={toolTab !== "properties"}>
       {designTarget ? <><ElementInspector selected={selectedElement} path={previewPath} settings={siteSettings} onChange={updateElementSettings} onApply={applyElement} onUpload={requestUpload} onClose={clearElement}/><details className="builder-page-settings"><summary>Page and site settings</summary><SiteDesignInspector settings={siteSettings} target={designTarget} onChange={(next) => { commitDesign(next); sendDesignState(next); }} onUpload={requestUpload} onReset={() => { commitDesign(DEFAULT_SITE_SETTINGS, "Design reset locally — publish to apply"); sendDesignState(DEFAULT_SITE_SETTINGS); }}/></details></> : !draft ? <div className="builder-inspector-empty"><strong>Nothing selected</strong><p>Select a page, global design, or managed content to edit it.</p></div> : <>
         <div className="builder-inspector-head"><div><small>{draft.id ? "Editing" : "Creating"}</small><strong>{draft.title || `New ${typeLabels[draft.type]}`}</strong></div><button aria-label="Close editor" onClick={() => { setDraft(null); setPreviewMode("site"); }}><X size={17}/></button></div>
         <div className="builder-inspector-actions"><button onClick={duplicate}><Copy size={14}/> Duplicate</button>{draft.status === "published" && draft.slug && <a href={contentPath(draft.type, draft.slug)} target="_blank" rel="noreferrer"><ExternalLink size={14}/> Open</a>}<button className="danger" onClick={() => void remove()} disabled={!draft.id || saving}><Trash2 size={14}/> Delete</button></div>
@@ -452,6 +481,7 @@ export function SiteBuilder({ initial, initialSettings, recoveredDesignDraft = f
         </div>
         <div className="builder-blocks"><div className="builder-section-title"><div><small>Layout</small><strong>Content blocks</strong></div></div><div className="builder-block-palette">{(["text", "image", "quote", "video", "cta", "gallery", "stats", "timeline"] as ContentBlock["type"][]).map((type) => <button key={type} onClick={() => addBlock(type)}><Plus size={12}/>{blockLabel(type)}</button>)}</div>{draft.blocks.map((block, index) => <BlockEditor key={block.id} block={block} index={index} count={draft.blocks.length} update={(data) => updateBlock(block.id, { data: { ...block.data, ...data } })} move={moveBlock} remove={() => removeBlock(block.id)} upload={requestUpload}/>)}</div>
       </>}
+      </div>
     </aside>
   </div>;
 }

@@ -20,7 +20,8 @@ function useNavigationLinks(settings: SiteSettings) {
     return () => controller.abort();
   }, []);
   const baseLinks = [[settings.navLabels.work, "/work"], [settings.navLabels.about, "/about"], [settings.navLabels.services, "/services"], [settings.navLabels.contact, "/contact"]] as const;
-  return [...baseLinks.slice(0, 3), ...managed, baseLinks[3]];
+  const links = [...baseLinks.slice(0, 3), ...managed, ...(settings.navigationLinks || []).map((link) => [link.label, link.href] as const), baseLinks[3]];
+  return links.filter(([label, href], index) => label && href && links.findIndex((link) => link[1] === href) === index);
 }
 
 export function SiteHeader({ settings: initial }: { settings: SiteSettings }) {

@@ -2,6 +2,19 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { DEFAULT_SITE_SETTINGS, normalizeSiteSettings } from "../../lib/site-settings.ts";
 
+test("publishing retains locks, rotation, and editable gallery layouts", () => {
+  const settings = normalizeSiteSettings({ elementOverrides: [{ id: "lock", path: "/", selector: "h1", tag: "h1", locked: true, styles: { rotate: "30deg" } }], customElements: [{ id: "layout", path: "/", type: "gallery", content: "", src: "", href: "", order: 0, columns: 3, cards: [{ image: "/image.jpg", heading: "Heading", body: "Body" }], styles: {} }] });
+  assert.equal(settings.elementOverrides[0].locked, true);
+  assert.equal(settings.elementOverrides[0].styles.rotate, "30deg");
+  assert.equal(settings.customElements[0].type, "gallery");
+  assert.equal(settings.customElements[0].columns, 3);
+  assert.equal(settings.customElements[0].cards?.[0].heading, "Heading");
+});
+test("navigation tabs retain labels and reject executable link schemes", () => {
+  const settings = normalizeSiteSettings({ navigationLinks: [{ label: "New page", href: "/new-page" }, { label: "Unsafe", href: "javascript:alert(1)" }] });
+  assert.deepEqual(settings.navigationLinks, [{ label: "New page", href: "/new-page" }]);
+});
+
 test("merges visual settings without losing page defaults", () => {
   const settings = normalizeSiteSettings({ colors: { ...DEFAULT_SITE_SETTINGS.colors, accent: "#123456" }, pages: { ...DEFAULT_SITE_SETTINGS.pages, home: { ...DEFAULT_SITE_SETTINGS.pages.home, title: "A new title" } } });
   assert.equal(settings.colors.accent, "#123456");
