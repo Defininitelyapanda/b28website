@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, ChevronDown, ChevronUp, Copy, ExternalLink, FileText, Laptop, Monitor, Plus, Redo2, Save, Search, Send, Smartphone, Trash2, Undo2, Upload, X } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronUp, Copy, ExternalLink, FileText, Laptop, Monitor, Plus, Redo2, RotateCcw, Save, Search, Send, Smartphone, Trash2, Undo2, Upload, X } from "lucide-react";
 import type { ContentBlock, ContentItem, ContentStatus, ContentType } from "@/lib/cms-types";
 import { contentPath } from "@/lib/content-url";
 import { DEFAULT_SITE_SETTINGS, type CustomElement, type ElementOverride, type SitePageKey, type SiteSettings } from "@/lib/site-settings";
@@ -77,6 +77,8 @@ export function SiteBuilder({ initial, initialSettings }: { initial: ContentItem
   const previewRef = useRef<HTMLIFrameElement>(null);
   const uploadReceiver = useRef<(path: string) => void>(() => undefined);
   const settingsRef = useRef(initialSettings);
+  const designHistoryRef = useRef<SiteSettings[]>([initialSettings]);
+  const designHistoryIndexRef = useRef(0);
 
   const visible = useMemo(() => items.filter((item) => (filter === "all" || item.type === filter) && `${item.title} ${item.slug}`.toLocaleLowerCase().includes(query.toLocaleLowerCase())), [items, filter, query]);
 
@@ -148,23 +150,23 @@ export function SiteBuilder({ initial, initialSettings }: { initial: ContentItem
   }
 
   function commitDesign(next: SiteSettings, message = "Unsaved design changes") {
-    const nextHistory = [...designHistory.slice(0, designHistoryIndex + 1), next].slice(-100);
-    settingsRef.current = next; setSiteSettings(next); setDesignHistory(nextHistory); setDesignHistoryIndex(nextHistory.length - 1); setStatus(message);
+    const nextHistory = [...designHistoryRef.current.slice(0, designHistoryIndexRef.current + 1), next].slice(-100); const nextIndex = nextHistory.length - 1;
+    settingsRef.current = next; designHistoryRef.current = nextHistory; designHistoryIndexRef.current = nextIndex; setSiteSettings(next); setDesignHistory(nextHistory); setDesignHistoryIndex(nextIndex); setStatus(message);
   }
 
   function restoreDesign(index: number, message: string) {
-    const next = designHistory[index]; if (!next) return;
-    settingsRef.current = next; setDesignHistoryIndex(index); setSiteSettings(next); setSelectedElement(null); setPreviewKey((key) => key + 1); setStatus(message);
+    const next = designHistoryRef.current[index]; if (!next) return;
+    settingsRef.current = next; designHistoryIndexRef.current = index; setDesignHistoryIndex(index); setSiteSettings(next); sendDesignState(next); clearElement(); setStatus(message);
   }
 
   function undo() {
-    if (designTarget) { if (designHistoryIndex > 0) restoreDesign(designHistoryIndex - 1, "Design change undone"); return; }
+    if (designTarget) { const index = designHistoryIndexRef.current; if (index > 0) restoreDesign(index - 1, "Design change undone"); return; }
     if (historyIndex <= 0) return;
     const index = historyIndex - 1; setHistoryIndex(index); setDraft(history[index]); setStatus("Change undone");
   }
 
   function redo() {
-    if (designTarget) { if (designHistoryIndex < designHistory.length - 1) restoreDesign(designHistoryIndex + 1, "Design change restored"); return; }
+    if (designTarget) { const index = designHistoryIndexRef.current; if (index < designHistoryRef.current.length - 1) restoreDesign(index + 1, "Design change restored"); return; }
     if (historyIndex >= history.length - 1) return;
     const index = historyIndex + 1; setHistoryIndex(index); setDraft(history[index]); setStatus("Change restored");
   }
@@ -249,16 +251,27 @@ export function SiteBuilder({ initial, initialSettings }: { initial: ContentItem
       const response = await fetch("/api/admin2714/site", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(siteSettings) });
       const result = await response.json() as { success?: boolean; data?: SiteSettings; error?: { message?: string } };
       if (!response.ok || !result.success) throw new Error(result.error?.message || "Design could not be saved.");
-      if (result.data) { settingsRef.current = result.data; setSiteSettings(result.data); setDesignHistory([result.data]); setDesignHistoryIndex(0); }
+      if (result.data) { settingsRef.current = result.data; designHistoryRef.current = [result.data]; designHistoryIndexRef.current = 0; setSiteSettings(result.data); setDesignHistory([result.data]); setDesignHistoryIndex(0); }
       setPreviewKey((key) => key + 1); setStatus("Design published to the live site");
     } catch (error) { setStatus(error instanceof Error ? error.message : "Design could not be saved."); }
+    finally { setSaving(false); }
+  }
+
+  async function restoreLastSavedDesign() {
+    setSaving(true); setStatus("Loading last saved design…");
+    try {
+      const response = await fetch("/api/admin2714/site", { cache: "no-store" });
+      const result = await response.json() as { success?: boolean; data?: SiteSettings; error?: { message?: string } };
+      if (!response.ok || !result.success || !result.data) throw new Error(result.error?.message || "Last saved design could not be loaded.");
+      const saved = result.data; settingsRef.current = saved; designHistoryRef.current = [saved]; designHistoryIndexRef.current = 0; setSiteSettings(saved); setDesignHistory([saved]); setDesignHistoryIndex(0); sendDesignState(saved); clearElement(); setStatus("Restored the last saved design — no page reload");
+    } catch (error) { setStatus(error instanceof Error ? error.message : "Last saved design could not be loaded."); }
     finally { setSaving(false); }
   }
 
   function requestUpload(receiver: (path: string) => void) { uploadReceiver.current = receiver; uploadRef.current?.click(); }
   function applyElement(override: ElementOverride) { previewRef.current?.contentWindow?.postMessage({ source: "b28-builder", type: "apply", override }, window.location.origin); }
   function clearElement() { setSelectedElement(null); previewRef.current?.contentWindow?.postMessage({ source: "b28-builder", type: "select-clear" }, window.location.origin); }
-  function sendDesignState() { const current = settingsRef.current; previewRef.current?.contentWindow?.postMessage({ source: "b28-builder", type: "state", path: previewPath, overrides: current.elementOverrides, items: current.customElements }, window.location.origin); }
+  function sendDesignState(settings: SiteSettings = settingsRef.current) { previewRef.current?.contentWindow?.postMessage({ source: "b28-builder", type: "state", path: previewPath, overrides: settings.elementOverrides, items: settings.customElements }, window.location.origin); }
   function updateElementSettings(next: SiteSettings) { commitDesign(next, "Unsaved element changes"); previewRef.current?.contentWindow?.postMessage({ source: "b28-builder", type: "custom", path: previewPath, items: next.customElements }, window.location.origin); }
   function applyVisualPatch(element: SelectedVisualElement, patch: Partial<ElementOverride>) {
     const current = settingsRef.current;
@@ -284,7 +297,7 @@ export function SiteBuilder({ initial, initialSettings }: { initial: ContentItem
     <header className="builder-toolbar">
       <div className="builder-brand"><Link href="/" aria-label="Return to public site"><ArrowLeft size={17}/></Link><span className="builder-logo">B28</span><div><strong>Website Builder</strong><small>{status}</small></div></div>
       <div className="builder-toolbar-center"><button className={previewMode === "design" ? "active" : ""} onClick={() => setPreviewMode("design")} disabled={!draft && !designTarget}>Design</button><button className={previewMode === "site" ? "active" : ""} onClick={() => setPreviewMode("site")}>Live site</button><span className="builder-divider"/><button aria-label="Desktop preview" className={viewport === "desktop" ? "active" : ""} onClick={() => setViewport("desktop")}><Monitor size={16}/></button><button aria-label="Tablet preview" className={viewport === "tablet" ? "active" : ""} onClick={() => setViewport("tablet")}><Laptop size={16}/></button><button aria-label="Mobile preview" className={viewport === "mobile" ? "active" : ""} onClick={() => setViewport("mobile")}><Smartphone size={16}/></button></div>
-      <div className="builder-toolbar-actions"><button aria-label="Undo" onClick={undo} disabled={designTarget ? designHistoryIndex <= 0 : !draft || historyIndex <= 0}><Undo2 size={16}/></button><button aria-label="Redo" onClick={redo} disabled={designTarget ? designHistoryIndex >= designHistory.length - 1 : !draft || historyIndex >= history.length - 1}><Redo2 size={16}/></button>{designTarget ? <button className="primary" onClick={() => void saveDesign()} disabled={saving}><Send size={15}/> Publish design</button> : <><button onClick={() => void save("draft")} disabled={!draft || saving}><Save size={15}/> Draft</button><button className="primary" onClick={() => void save("published")} disabled={!draft || saving}><Send size={15}/> Publish</button></>}</div>
+      <div className="builder-toolbar-actions"><button aria-label="Undo" onClick={undo} disabled={designTarget ? designHistoryIndex <= 0 : !draft || historyIndex <= 0}><Undo2 size={16}/></button><button aria-label="Redo" onClick={redo} disabled={designTarget ? designHistoryIndex >= designHistory.length - 1 : !draft || historyIndex >= history.length - 1}><Redo2 size={16}/></button>{designTarget ? <><button onClick={() => void restoreLastSavedDesign()} disabled={saving} title="Discard unsaved design changes and return to the persisted version"><RotateCcw size={15}/> Back to last saved</button><button className="primary" onClick={() => void saveDesign()} disabled={saving}><Send size={15}/> Publish design</button></> : <><button onClick={() => void save("draft")} disabled={!draft || saving}><Save size={15}/> Draft</button><button className="primary" onClick={() => void save("published")} disabled={!draft || saving}><Send size={15}/> Publish</button></>}</div>
     </header>
     <input ref={uploadRef} className="sr-only" type="file" accept="image/*,video/mp4,video/webm" onChange={(event) => { const file = event.target.files?.[0]; if (file) void upload(file); }}/>
 

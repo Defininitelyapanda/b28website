@@ -12,6 +12,7 @@ type VisualCommand =
   | { source: "b28-builder"; type: "state"; path: string; overrides: ElementOverride[]; items: CustomElement[] };
 
 const editableTextTags = new Set(["p", "h1", "h2", "h3", "h4", "h5", "h6", "a", "button", "span", "em", "strong", "small", "label"]);
+type ElementSnapshot = { selector: string; html: string; style: string | null; hidden: boolean; src: string | null; href: string | null; alt: string | null };
 
 function tellParent(type: string, detail: Record<string, unknown> = {}) {
   window.parent.postMessage({ source: "b28-visual-editor", type, ...detail }, window.location.origin);
@@ -59,6 +60,20 @@ function applyOverride(override: ElementOverride) {
   for (const [property, value] of Object.entries(override.styles)) element.style.setProperty(property, value);
 }
 
+function rememberElement(selector: string, snapshots: Map<string, ElementSnapshot>) {
+  if (snapshots.has(selector)) return;
+  const element = safeQuery(selector); if (!element) return;
+  snapshots.set(selector, { selector, html: element.innerHTML, style: element.getAttribute("style"), hidden: element.hidden, src: element.getAttribute("src"), href: element.getAttribute("href"), alt: element.getAttribute("alt") });
+}
+
+function restoreElements(snapshots: Map<string, ElementSnapshot>) {
+  const attribute = (element: HTMLElement, name: string, value: string | null) => value === null ? element.removeAttribute(name) : element.setAttribute(name, value);
+  for (const snapshot of snapshots.values()) {
+    const element = safeQuery(snapshot.selector); if (!element) continue;
+    element.innerHTML = snapshot.html; attribute(element, "style", snapshot.style); attribute(element, "src", snapshot.src); attribute(element, "href", snapshot.href); attribute(element, "alt", snapshot.alt); element.hidden = snapshot.hidden;
+  }
+}
+
 function embedUrl(value: string) {
   try {
     const url = new URL(value, window.location.origin);
@@ -101,9 +116,13 @@ function renderCustomElements(path: string, items: CustomElement[]) {
 
 function makeToolbar(path: string, selected: () => HTMLElement | null, selectElement: (element: HTMLElement) => void) {
   const toolbar = document.createElement("div"); toolbar.className = "visual-inline-toolbar"; toolbar.dataset.visualUi = "true"; document.body.append(toolbar);
+  const transform = document.createElement("div"); transform.className = "visual-transform-box"; transform.dataset.visualUi = "true";
+  const moveHandle = document.createElement("button"); moveHandle.type = "button"; moveHandle.className = "visual-move-handle"; moveHandle.title = "Drag to reposition"; moveHandle.setAttribute("aria-label", "Drag to reposition"); moveHandle.textContent = "✥";
+  const resizeHandle = document.createElement("button"); resizeHandle.type = "button"; resizeHandle.className = "visual-resize-handle"; resizeHandle.title = "Drag to resize"; resizeHandle.setAttribute("aria-label", "Drag to resize");
+  transform.append(moveHandle, resizeHandle); document.body.append(transform);
   const action = (label: string, handler: () => void, className = "") => { const button = document.createElement("button"); button.type = "button"; button.textContent = label; button.className = className; button.addEventListener("click", (event) => { event.preventDefault(); event.stopPropagation(); handler(); }); toolbar.append(button); };
   const refresh = () => {
-    const element = selected(); if (!element) { toolbar.hidden = true; return; }
+    const element = selected(); if (!element || !element.isConnected) { toolbar.hidden = true; transform.hidden = true; return; }
     toolbar.hidden = false; toolbar.replaceChildren(); const data = visualData(element, path);
     if (data.canEditText) { action("Edit text", () => { element.setAttribute("contenteditable", "plaintext-only"); element.focus(); }); action("B", () => tellParent("change", { element: data, patch: { styles: { "font-weight": getComputedStyle(element).fontWeight === "700" ? "400" : "700" } } }), "strong"); action("I", () => tellParent("change", { element: data, patch: { styles: { "font-style": getComputedStyle(element).fontStyle === "italic" ? "normal" : "italic" } } }), "italic"); }
     if (element instanceof HTMLImageElement || element instanceof HTMLIFrameElement) action("Replace", () => tellParent("request-upload", { element: data, field: "src" }));
@@ -111,18 +130,41 @@ function makeToolbar(path: string, selected: () => HTMLElement | null, selectEle
     if (element instanceof HTMLAnchorElement) action("Link", () => { const href = window.prompt("Enter the link URL", element.getAttribute("href") || ""); if (href !== null) tellParent("change", { element: data, patch: { href } }); });
     action("Duplicate", () => tellParent("action", { action: "duplicate", element: data })); action("Delete", () => tellParent("action", { action: "delete", element: data }), "danger");
     const rect = element.getBoundingClientRect(); toolbar.style.left = `${Math.max(8, Math.min(window.innerWidth - toolbar.offsetWidth - 8, rect.left))}px`; toolbar.style.top = `${Math.max(8, rect.top - 45)}px`;
+    transform.hidden = false; transform.style.left = `${rect.left}px`; transform.style.top = `${rect.top}px`; transform.style.width = `${rect.width}px`; transform.style.height = `${rect.height}px`;
   };
-  window.addEventListener("scroll", refresh, true); window.addEventListener("resize", refresh); return { toolbar, refresh, destroy: () => { toolbar.remove(); window.removeEventListener("scroll", refresh, true); window.removeEventListener("resize", refresh); }, selectElement };
+  const beginTransform = (mode: "move" | "resize", event: PointerEvent) => {
+    const element = selected(); if (!element) return;
+    event.preventDefault(); event.stopPropagation(); element.removeAttribute("contenteditable");
+    const startX = event.clientX; const startY = event.clientY; const rect = element.getBoundingClientRect(); const computed = getComputedStyle(element); let changed = false;
+    const currentLeft = Number.parseFloat(element.style.left) || 0; const currentTop = Number.parseFloat(element.style.top) || 0; const position = computed.position === "static" ? "relative" : computed.position;
+    const move = (pointer: PointerEvent) => {
+      const dx = pointer.clientX - startX; const dy = pointer.clientY - startY;
+      changed = true;
+      if (mode === "move") { element.style.position = position; element.style.left = `${Math.round(currentLeft + dx)}px`; element.style.top = `${Math.round(currentTop + dy)}px`; }
+      else { if (computed.display === "inline") element.style.display = "inline-block"; element.style.width = `${Math.max(24, Math.round(rect.width + dx))}px`; element.style.height = `${Math.max(24, Math.round(rect.height + dy))}px`; }
+      refresh();
+    };
+    const finish = () => {
+      window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", finish); window.removeEventListener("pointercancel", finish);
+      if (changed) { const patch = mode === "move" ? { styles: { position: element.style.position, left: element.style.left, top: element.style.top } } : { styles: { display: element.style.display, width: element.style.width, height: element.style.height } }; tellParent("change", { element: visualData(element, path), patch }); }
+      selectElement(element);
+    };
+    window.addEventListener("pointermove", move); window.addEventListener("pointerup", finish, { once: true }); window.addEventListener("pointercancel", finish, { once: true });
+  };
+  moveHandle.addEventListener("pointerdown", (event) => beginTransform("move", event)); resizeHandle.addEventListener("pointerdown", (event) => beginTransform("resize", event));
+  window.addEventListener("scroll", refresh, true); window.addEventListener("resize", refresh); return { toolbar, refresh, destroy: () => { toolbar.remove(); transform.remove(); window.removeEventListener("scroll", refresh, true); window.removeEventListener("resize", refresh); }, selectElement };
 }
 
 export function VisualEditorRuntime({ overrides, customElements }: { overrides: ElementOverride[]; customElements: CustomElement[] }) {
   const pathname = usePathname();
   useEffect(() => {
-    const applyAll = () => { renderCustomElements(pathname, customElements); overrides.filter((entry) => entry.path === pathname).forEach(applyOverride); };
+    const snapshots = new Map<string, ElementSnapshot>();
+    const applyTracked = (override: ElementOverride) => { rememberElement(override.selector, snapshots); applyOverride(override); };
+    const applyAll = () => { renderCustomElements(pathname, customElements); overrides.filter((entry) => entry.path === pathname).forEach(applyTracked); };
     applyAll(); const timer = window.setTimeout(applyAll, 150); const editing = new URLSearchParams(window.location.search).get("visual-editor") === "1";
     if (!editing) return () => window.clearTimeout(timer);
     document.documentElement.classList.add("visual-editing"); let hovered: HTMLElement | null = null; let selected: HTMLElement | null = null; let editTimer = 0;
-    const selectElement = (element: HTMLElement) => { selected?.removeAttribute("data-visual-selected"); if (selected && selected !== element) selected.removeAttribute("contenteditable"); selected = element; selected.dataset.visualSelected = "true"; const data = visualData(selected, pathname); tellParent("selected", { element: data }); if (data.canEditText) { selected.setAttribute("contenteditable", "plaintext-only"); selected.focus(); } toolbar.refresh(); };
+    const selectElement = (element: HTMLElement) => { selected?.removeAttribute("data-visual-selected"); if (selected && selected !== element) selected.removeAttribute("contenteditable"); selected = element; selected.dataset.visualSelected = "true"; const data = visualData(selected, pathname); rememberElement(data.selector, snapshots); tellParent("selected", { element: data }); if (data.canEditText) { selected.setAttribute("contenteditable", "plaintext-only"); selected.focus(); } toolbar.refresh(); };
     const toolbar = makeToolbar(pathname, () => selected, selectElement);
     const hover = (event: MouseEvent) => { const target = (event.target as HTMLElement).closest<HTMLElement>(".site-shell *"); if (!target || target.closest("script,style") || (event.target as HTMLElement).closest("[data-visual-ui]")) return; if (hovered && hovered !== selected) hovered.removeAttribute("data-visual-hover"); hovered = target; if (hovered !== selected) hovered.dataset.visualHover = "true"; };
     const choose = (event: MouseEvent) => { if ((event.target as HTMLElement).closest("[data-visual-ui]")) return; const target = (event.target as HTMLElement).closest<HTMLElement>(".site-shell *"); if (!target || target.closest("script,style")) return; event.preventDefault(); event.stopPropagation(); selectElement(target); };
@@ -131,9 +173,9 @@ export function VisualEditorRuntime({ overrides, customElements }: { overrides: 
     const message = (event: MessageEvent<VisualCommand>) => {
       if (event.origin !== window.location.origin || event.data?.source !== "b28-builder") return;
       const command = event.data;
-      if (command.type === "apply") { applyOverride(command.override); toolbar.refresh(); }
+      if (command.type === "apply") { applyTracked(command.override); toolbar.refresh(); }
       if (command.type === "custom") renderCustomElements(command.path, command.items);
-      if (command.type === "state") { const commandPath = command.path; renderCustomElements(commandPath, command.items); command.overrides.filter((entry) => entry.path === commandPath).forEach(applyOverride); }
+      if (command.type === "state") { const commandPath = command.path; restoreElements(snapshots); renderCustomElements(commandPath, command.items); command.overrides.filter((entry) => entry.path === commandPath).forEach(applyTracked); toolbar.refresh(); }
       if (command.type === "select-clear") { selected?.removeAttribute("data-visual-selected"); selected?.removeAttribute("contenteditable"); selected = null; toolbar.refresh(); }
     };
     document.addEventListener("mousemove", hover, true); document.addEventListener("click", choose, true); document.addEventListener("input", input, true); document.addEventListener("keydown", keyboard, true); window.addEventListener("message", message); tellParent("ready", { path: pathname });

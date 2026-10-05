@@ -77,8 +77,17 @@ test("visual editor supports inline controls, history shortcuts, anchored elemen
     readFile(new URL("../../next.config.ts", import.meta.url), "utf8"),
   ]);
   assert.match(builder, /designHistoryIndex/);
+  assert.match(builder, /designHistoryIndexRef/);
+  assert.match(builder, /Back to last saved/);
+  assert.match(builder, /fetch\("\/api\/admin2714\/site", \{ cache: "no-store" \}\)/);
+  const restoreDesign = builder.match(/function restoreDesign[\s\S]*?\n  }/)?.[0] || "";
+  assert.match(restoreDesign, /sendDesignState\(next\)/);
+  assert.doesNotMatch(restoreDesign, /setPreviewKey/);
   assert.match(runtime, /contenteditable/);
   assert.match(runtime, /visual-inline-toolbar/);
+  assert.match(runtime, /visual-move-handle/);
+  assert.match(runtime, /visual-resize-handle/);
+  assert.match(runtime, /restoreElements\(snapshots\)/);
   assert.match(runtime, /action: event\.shiftKey \? "redo" : "undo"/);
   assert.match(runtime, /anchor\.after\(node\)/);
   assert.match(inspector, /Video \/ embed/);
