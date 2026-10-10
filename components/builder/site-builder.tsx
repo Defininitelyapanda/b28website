@@ -36,7 +36,7 @@ const typeLabels: Record<ContentType, string> = { page: "Page", project: "Projec
 const typeDescriptions: Record<ContentType, string> = {
   page: "Create a standalone page and add it to navigation.",
   project: "Add a film to the Projects archive.",
-  article: "Publish a journal story under About.",
+  article: "Publish once to update every Journal section across the site.",
   service: "Add a capability to the Services page.",
   team: "Add a profile to the About page.",
 };

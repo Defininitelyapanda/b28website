@@ -120,3 +120,57 @@ img,video,svg{max-width:100%}
 @media(max-width:640px){
   .team-grid{grid-template-columns:1fr}
 }
+
+/* Balanced public-site scale. These shared rules also power the admin canvas. */
+.site-shell{
+  --display-size:clamp(3rem,7vw,6.5rem);
+  --page-title-size:clamp(2.9rem,6.5vw,6rem);
+  --section-title-size:clamp(2.25rem,4.25vw,4.25rem);
+  line-height:1.55;
+}
+.site-shell .wrap{width:min(calc(100% - 48px),var(--site-max,1240px))}
+.site-shell .section-pad{padding-block:clamp(3.5rem,var(--section-space,72px),6rem)}
+.site-shell .hero{height:auto;min-height:clamp(600px,84svh,780px)}
+.site-shell .hero-copy{padding-bottom:clamp(4.5rem,9vh,7rem)}
+.site-shell .hero-copy h1{font-size:var(--display-size);line-height:.88;max-width:920px;margin:.75rem 0 1.5rem}
+.site-shell .hero-intro{max-width:600px;font-size:clamp(1rem,1.25vw,1.15rem);margin-bottom:1.6rem}
+.site-shell .page-hero{min-height:clamp(500px,68svh,700px);padding:9rem 0 4.5rem}
+.site-shell .page-hero h1,.site-shell .detail-copy h1{font-size:var(--page-title-size);line-height:.88;margin:.75rem 0 1.25rem;max-width:1000px}
+.site-shell .page-hero p:not(.section-kicker),.site-shell .detail-body article{font-size:clamp(1rem,1.25vw,1.1rem)}
+.site-shell .statement{grid-template-columns:minmax(120px,.7fr) minmax(0,4fr) auto;gap:clamp(1.5rem,4vw,4rem)}
+.site-shell .statement h2{font-size:var(--section-title-size);max-width:900px}
+.site-shell .section-head{margin-bottom:2.5rem}
+.site-shell .section-head h2,.site-shell .services-preview h2,.site-shell .split h2,.site-shell .team-line h2{font-size:var(--section-title-size);line-height:1}
+.site-shell .project-grid{gap:2.75rem 24px}
+.site-shell .project-info h3,.site-shell .journal-card h3{font-size:clamp(1.35rem,2vw,2rem);line-height:1.08}
+.site-shell .journal-grid{gap:24px}
+.site-shell .journal-card:nth-child(2){margin-top:0}
+.site-shell .journal-image{margin-bottom:1rem}
+.site-shell .service-row{padding:1.5rem 0}
+.site-shell .service-row h3{font-size:clamp(1.3rem,2.2vw,2.25rem)}
+.site-shell .about-copy{padding-top:2rem}
+.site-shell .about-copy p,.site-shell .team-line p,.site-shell .prose-page p{font-size:clamp(1rem,1.25vw,1.12rem)}
+.site-shell .prose-page h2{font-size:var(--section-title-size);margin:3.5rem 0 1.25rem}
+.site-shell .final-cta{padding:clamp(5rem,9vw,8rem) 0}
+.site-shell .final-cta h2{font-size:clamp(3rem,6.5vw,6.5rem);line-height:.88;margin:1rem 0 2rem}
+.site-shell .site-footer{padding:4.5rem 0 1.5rem}
+.site-shell .footer-grid{gap:clamp(2rem,4vw,4rem)}
+.site-shell .footer-big{font-size:clamp(2.5rem,4.8vw,5rem);line-height:.88}
+.site-shell .legal{margin-top:4rem}
+.site-shell .about-logo{width:min(100%,420px);margin-bottom:3.5rem}
+
+@media(max-width:900px){
+  .site-shell .statement{grid-template-columns:1fr}
+  .site-shell .about-copy{padding-top:0}
+}
+
+@media(max-width:640px){
+  .site-shell{--display-size:clamp(2.5rem,12vw,3.75rem);--page-title-size:clamp(2.4rem,11vw,3.6rem);--section-title-size:clamp(2rem,9vw,3rem)}
+  .site-shell .wrap{width:calc(100% - 32px)}
+  .site-shell .section-pad{padding-block:clamp(3rem,var(--section-space,56px),4.5rem)}
+  .site-shell .hero{min-height:680px}
+  .site-shell .hero-copy{padding-bottom:4.5rem}
+  .site-shell .page-hero{min-height:560px;padding:8rem 0 3.5rem}
+  .site-shell .footer-grid{gap:2.25rem}
+  .site-shell .legal{margin-top:3rem}
+}

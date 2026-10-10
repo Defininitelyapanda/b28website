@@ -98,7 +98,7 @@ export async function ensureSeedData(authorId = "system") {
       ["project", "fragile-hearts", "Fragile Hearts", "A Kenyan relationship drama from B28 Entertainment.", "/media/fragile-hearts.jpg", { year: "2024", format: "Short Film", genre: "Relationship Drama", youtubeUrl: "https://www.youtube.com/watch?v=sSmx-umq-lU", trailerUrl: "https://www.youtube.com/watch?v=6ZfqpV1ZPtQ" }],
       ["service", "film-production", "Film Production", "Original Kenyan films shaped from development through production and release.", "/media/shattered.jpg", {}],
       ["service", "short-form-storytelling", "Short-form Storytelling", "Focused visual stories made for audiences across film and digital platforms.", "/media/threshold.jpg", {}],
-      ["team", "b28-entertainment", "B28 Entertainment", "Entertainment made, simply for you.", "/media/b28-logo.jpg", { role: "Kenyan film studio" }],
+      ["team", "b28-entertainment", "B28 Entertainment", "A Nairobi studio creating intimate films rooted in contemporary life.", "/media/b28-logo.jpg", { role: "Kenyan film studio" }],
       ["article", "testimonials", "Testimonials", "What the community had to say about us.", "/media/b28-logo.jpg", { category: "Community" }, "Best experience being on set with the team — Trippy (crew)."],
     ];
     store.content = records.map((record, index) => ({ id: uid("content"), type: record[0], slug: record[1], title: record[2], status: "published", excerpt: record[3], body: record[6] ?? record[3], coverImage: record[4], data: record[5], featured: record[0] === "project" && index < 3, sortOrder: index, publishedAt: stamp, scheduledAt: null, createdAt: stamp, updatedAt: stamp }));

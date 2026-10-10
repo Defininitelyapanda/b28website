@@ -48,3 +48,24 @@ test("preserves individual element edits and custom canvas elements", () => {
   assert.equal(settings.customElements[1].type, "embed");
   assert.equal(settings.customElements[1].src, "https://youtu.be/example");
 });
+
+test("migrates the original oversized design and repeated slogan copy once", () => {
+  const settings = normalizeSiteSettings({
+    designRevision: 1,
+    typography: { ...DEFAULT_SITE_SETTINGS.typography, baseSize: 16 },
+    layout: { ...DEFAULT_SITE_SETTINGS.layout, maxWidth: 1380, sectionSpacing: 100 },
+    pages: {
+      ...DEFAULT_SITE_SETTINGS.pages,
+      home: { ...DEFAULT_SITE_SETTINGS.pages.home, title: "Entertainment made, simply for you.", heroHeight: 100, copy: { aboutTitle: "Entertainment made, simply for you.", finalTitle: "Entertainment made, simply for you." } },
+      about: { ...DEFAULT_SITE_SETTINGS.pages.about, title: "Entertainment made, simply for you.", heroHeight: 78, copy: { finalHeading: "Our promise", finalBody: "Entertainment made, simply for you." } },
+    },
+  });
+  assert.equal(settings.designRevision, 2);
+  assert.equal(settings.typography.baseSize, 15);
+  assert.equal(settings.layout.maxWidth, 1240);
+  assert.equal(settings.layout.sectionSpacing, 72);
+  assert.equal(settings.pages.home.title, "Stories shaped by real life.");
+  assert.equal(settings.pages.home.heroHeight, 84);
+  assert.equal(settings.pages.about.title, "A Kenyan studio with a human point of view.");
+  assert.equal(settings.pages.about.copy.finalBody, "Clear storytelling, thoughtful craft and characters that feel close to home.");
+});
